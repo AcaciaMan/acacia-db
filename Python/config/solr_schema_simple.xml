@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+Simplified Solr Schema for Oracle DB Objects Ripgrep Search Results
+Compatible with Solr 8.x and 9.x
+-->
+
+<schema name="oracle-db-search-results" version="1.6">
+
+  <!-- Field Types -->
+  
+  <!-- String field type -->
+  <fieldType name="string" class="solr.StrField" sortMissingLast="true" />
+  
+  <!-- Text field type -->
+  <fieldType name="text_general" class="solr.TextField" positionIncrementGap="100">
+    <analyzer>
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+  </fieldType>
+  
+  <fieldType name="pint" class="solr.IntPointField" docValues="true"/>
+  <fieldType name="pints" class="solr.IntPointField" docValues="true" multiValued="true"/>
+  
+  <!-- Long field type -->
+  <fieldType name="plong" class="solr.LongPointField" docValues="true"/>
+  <fieldType name="plongs" class="solr.LongPointField" docValues="true" multiValued="true"/>
+  
+  <!-- Boolean field type -->
+  <fieldType name="boolean" class="solr.BoolField" sortMissingLast="true"/>
+  <fieldType name="booleans" class="solr.BoolField" sortMissingLast="true" multiValued="true"/>
+  
+  <!-- Date field type -->
+  <fieldType name="pdate" class="solr.DatePointField" docValues="true"/>
+  <fieldType name="pdates" class="solr.DatePointField" docValues="true" multiValued="true"/>
+  
+  <fieldType name="pdouble" class="solr.DoublePointField" docValues="true"/>
+  <fieldType name="pdoubles" class="solr.DoublePointField" docValues="true" multiValued="true"/>
+
+  <!-- Fields Definition -->
+  
+  <!-- Required Solr fields -->
+  <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="_version_" type="plong" indexed="false" stored="false" docValues="true"/>
+  
+  <!-- Search Configuration Fields -->
+  <field name="config_name" type="string" indexed="true" stored="true" />
+  <field name="source_code_folder" type="string" indexed="true" stored="true" />
+  <field name="tables_views_file" type="string" indexed="true" stored="true" />
+  <field name="search_timestamp" type="pdate" indexed="true" stored="true" />
+  <field name="search_method" type="string" indexed="true" stored="true" />
+  
+  <!-- Oracle DB Object Fields -->
+  <field name="object_name" type="string" indexed="true" stored="true" />
+  <field name="object_type" type="string" indexed="true" stored="true" />
+  <field name="object_owner" type="string" indexed="true" stored="true" />
+  <field name="found" type="boolean" indexed="true" stored="true" />
+  <field name="total_matches" type="pint" indexed="true" stored="true" />
+  <field name="total_files" type="pint" indexed="true" stored="true" />
+  
+  <!-- Match Details Fields -->
+  <field name="match_id" type="string" indexed="true" stored="true" />
+  <field name="file_path" type="string" indexed="true" stored="true" />
+  <field name="file_name" type="string" indexed="true" stored="true" />
+  <field name="file_extension" type="string" indexed="true" stored="true" />
+  <field name="line_number" type="pint" indexed="true" stored="true" />
+  <field name="line_text" type="text_general" indexed="true" stored="true" />
+  <field name="match_start" type="pint" indexed="true" stored="true" />
+  <field name="match_end" type="pint" indexed="true" stored="true" />
+  <field name="context_before" type="text_general" indexed="true" stored="true" multiValued="true" />
+  <field name="context_after" type="text_general" indexed="true" stored="true" multiValued="true" />
+  
+  <!-- Summary Fields -->
+  <field name="summary_total_objects" type="pint" indexed="true" stored="true" />
+  <field name="summary_found_objects" type="pint" indexed="true" stored="true" />
+  <field name="summary_total_matches" type="pint" indexed="true" stored="true" />
+  <field name="summary_success_rate" type="string" indexed="true" stored="true" />
+  
+  <!-- Full Text Search Fields -->
+  <field name="all_text" type="text_general" indexed="true" stored="false" multiValued="true" />
+  <field name="code_content" type="text_general" indexed="true" stored="false" multiValued="true" />
+  
+  <!-- Error Handling Fields -->
+  <field name="error_message" type="text_general" indexed="true" stored="true" />
+  <field name="has_error" type="boolean" indexed="true" stored="true" />
+
+  <!-- Copy Fields for Full-Text Search -->
+  <copyField source="object_name" dest="all_text"/>
+  <copyField source="file_path" dest="all_text"/>
+  <copyField source="line_text" dest="all_text"/>
+  <copyField source="line_text" dest="code_content"/>
+  <copyField source="context_before" dest="code_content"/>
+  <copyField source="context_after" dest="code_content"/>
+  
+  <!-- Field to use to determine and enforce document uniqueness -->
+  <uniqueKey>id</uniqueKey>
+
+</schema>

@@ -47,11 +47,9 @@ which searches for Oracle database object mentions in source code using ripgrep.
   
   <!-- Boolean field type -->
   <fieldType name="boolean" class="solr.BoolField" sortMissingLast="true"/>
-  <fieldType name="booleans" class="solr.BoolField" sortMissingLast="true" multiValued="true"/>
   
   <!-- Date field type -->
   <fieldType name="pdate" class="solr.DatePointField" docValues="true"/>
-  <fieldType name="pdates" class="solr.DatePointField" docValues="true" multiValued="true"/>
   <fieldType name="date" class="solr.DatePointField" docValues="true"/>
   
   <!-- Path field type for file paths -->
@@ -65,7 +63,7 @@ which searches for Oracle database object mentions in source code using ripgrep.
   
   <!-- Required Solr fields -->
   <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false" />
-  <field name="_version_" type="plong" indexed="false" stored="false" docValues="true"/>
+  <field name="_version_" type="long" indexed="true" stored="true"/>
   
   <!-- Search Configuration Fields -->
   <field name="config_name" type="string" indexed="true" stored="true" />
