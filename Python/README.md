@@ -60,3 +60,37 @@ Python/
 3. **Document data sources** and processing steps
 4. **Include sample data** for easy testing and onboarding
 5. **Separate configuration** from code
+
+## Key Scripts
+
+### Oracle Database Analysis Pipeline
+
+1. **`src/scripts/tables_views_to_solr.py`** - Main search script
+   - Searches Oracle database objects in source code using ripgrep
+   - Extracts context lines around matches (+/- 50 lines)
+   - Outputs structured JSON results
+
+2. **`src/scripts/index_to_solr.py`** - Solr indexing script
+   - Transforms search results into Solr documents
+   - Indexes with full-text search capabilities
+   - Includes context data for rich analysis
+
+3. **`src/scripts/analyze_object_relations.py`** - Relationship analysis
+   - Finds relationships between Oracle database objects
+   - Analyzes column name matches and co-occurrence patterns
+   - Generates comprehensive relationship reports
+   - Usage examples:
+     ```bash
+     # Analyze specific relationship
+     python src/scripts/analyze_object_relations.py --object1 EMPLOYEES --object2 DEPARTMENTS
+     
+     # Find all significant relationships
+     python src/scripts/analyze_object_relations.py --min-score 0.3
+     ```
+
+### Usage Workflow
+
+1. **Search for object mentions**: `python src/scripts/tables_views_to_solr.py`
+2. **Index to Solr**: `python src/scripts/index_to_solr.py --clear`
+3. **Analyze relationships**: `python src/scripts/analyze_object_relations.py`
+4. **Query via Solr Admin**: `http://localhost:8983/solr/#/oracle_db_search`
