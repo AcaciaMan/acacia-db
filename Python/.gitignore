@@ -1,0 +1,52 @@
+# Data directories
+data/raw/*
+data/processed/*
+data/external/*
+data/output/*
+
+# Ignore all data files but keep directory structure
+data/**/*
+!data/**/README.md
+!data/**/.gitkeep
+
+# Sample data (optional - you might want to include some samples)
+# samples/input/*
+# samples/expected/*
+
+# Configuration files with sensitive information
+config/.env
+config/secrets.yaml
+config/local_settings.yaml
+
+# Jupyter notebook checkpoints
+notebooks/.ipynb_checkpoints/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
