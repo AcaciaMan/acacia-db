@@ -1,0 +1,14 @@
+# Requirements for Oracle DB to Solr processing
+# Core dependencies for the tables_views_to_solr.py script
+
+# No additional Python packages required - uses only standard library
+# External tool required: ripgrep (rg)
+
+# To install ripgrep:
+# Windows: choco install ripgrep  OR  winget install BurntSushi.ripgrep.MSVC
+# Linux: apt-get install ripgrep  OR  yum install ripgrep
+# macOS: brew install ripgrep
+
+# Optional Python packages for enhanced functionality:
+# pyyaml>=6.0          # For YAML configuration support
+# python-dotenv>=1.0   # For environment variable support

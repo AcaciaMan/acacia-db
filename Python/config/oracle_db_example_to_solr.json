@@ -1,0 +1,13 @@
+{
+    "script_folder": "oracle_db_example",
+    "source_code_folder": {
+        "path": "C:/work/GitHub/oracle-db-examples"
+    },
+    "destination": {
+        "type": "solr",
+        "connection": {
+        "url": "http://localhost:8983/solr/example_core"
+        }
+    },
+    "tables_views": "C:\\work\\GitHub\\acacia-db\\Python\\data\\external\\oracle_db_examples\\tables_views.json"
+}

@@ -9,8 +9,6 @@ import os
 from pathlib import Path
 from typing import Union, List, Dict, Any
 import json
-import yaml
-
 
 def get_project_root() -> Path:
     """Get the project root directory."""
