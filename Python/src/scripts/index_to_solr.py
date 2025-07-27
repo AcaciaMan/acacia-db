@@ -63,34 +63,34 @@ class SolrIndexer:
                 file_match['file_path'], 
                 match_detail['line_number']
             ),
-            'config_name': config_info.get('script_folder', 'unknown'),
-            'source_code_folder': config_info.get('source_code_folder', {}).get('path', ''),
-            'tables_views_file': config_info.get('tables_views', ''),
+            'config_name': str(config_info.get('script_folder', 'unknown')),
+            'source_code_folder': str(config_info.get('source_code_folder', {}).get('path', '')),
+            'tables_views_file': str(config_info.get('tables_views', '')),
             'search_timestamp': search_timestamp,
             'search_method': 'ripgrep',  # Could be enhanced to detect actual method
             
             # Oracle DB Object fields
-            'object_name': object_name,
-            'object_type': object_type,
-            'object_owner': object_owner,
+            'object_name': str(object_name),
+            'object_type': str(object_type),
+            'object_owner': str(object_owner),
             'found': True,
-            'total_matches': len(file_match['matches']),
+            'total_matches': int(len(file_match['matches'])),
             'total_files': 1,  # This document represents one file
             
             # Match details
             'match_id': f"{object_name}_{file_match['file_path']}_{match_detail['line_number']}",
-            'file_path': file_match['file_path'],
-            'file_name': file_info['file_name'],
-            'file_extension': file_info['file_extension'],
-            'line_number': match_detail['line_number'],
-            'line_text': match_detail['line_text'],
-            'match_start': match_detail.get('match_start', 0),
-            'match_end': match_detail.get('match_end', 0),
+            'file_path': str(file_match['file_path']),
+            'file_name': str(file_info['file_name']),
+            'file_extension': str(file_info['file_extension']),
+            'line_number': int(match_detail['line_number']),
+            'line_text': str(match_detail['line_text']),
+            'match_start': int(match_detail.get('match_start', 0)),
+            'match_end': int(match_detail.get('match_end', 0)),
             
             # Summary fields
-            'summary_total_objects': summary_info.get('total_objects', 0),
-            'summary_found_objects': summary_info.get('found_objects', 0),
-            'summary_total_matches': summary_info.get('total_matches', 0),
+            'summary_total_objects': int(summary_info.get('total_objects', 0)),
+            'summary_found_objects': int(summary_info.get('found_objects', 0)),
+            'summary_total_matches': int(summary_info.get('total_matches', 0)),
             'summary_success_rate': f"{summary_info.get('found_objects', 0) / max(summary_info.get('total_objects', 1), 1) * 100:.1f}%",
             
             # Error handling
@@ -98,10 +98,23 @@ class SolrIndexer:
         }
         
         # Add context if available
-        if 'context_before' in match_detail:
-            doc['context_before'] = match_detail['context_before']
-        if 'context_after' in match_detail:
-            doc['context_after'] = match_detail['context_after']
+        if 'context_before' in match_detail and match_detail['context_before']:
+            # Flatten context_before to text array
+            doc['context_before'] = [ctx['line_text'] for ctx in match_detail['context_before']]
+        else:
+            doc['context_before'] = []
+            
+        if 'context_after' in match_detail and match_detail['context_after']:
+            # Flatten context_after to text array  
+            doc['context_after'] = [ctx['line_text'] for ctx in match_detail['context_after']]
+        else:
+            doc['context_after'] = []
+        
+        # Create combined text field for full-text search
+        all_text_parts = [match_detail['line_text']]
+        all_text_parts.extend(doc['context_before'])
+        all_text_parts.extend(doc['context_after'])
+        doc['all_text'] = all_text_parts
             
         return doc
     
@@ -163,7 +176,7 @@ class SolrIndexer:
         
         config_info = results.get('config', {})
         summary_info = results.get('summary', {})
-        search_timestamp = datetime.now().isoformat() + 'Z'
+        search_timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
         
         # Process each object result
         for obj_result in results.get('objects', []):
@@ -234,6 +247,15 @@ class SolrIndexer:
             for i in range(0, len(documents), batch_size):
                 batch = documents[i:i + batch_size]
                 
+                # Debug: Print first document structure in first batch
+                if i == 0 and batch:
+                    print(f"Sample document structure:")
+                    print(f"  ID: {batch[0].get('id', 'N/A')}")
+                    print(f"  Object: {batch[0].get('object_name', 'N/A')}")
+                    print(f"  Line: {batch[0].get('line_number', 'N/A')}")
+                    print(f"  Context before: {len(batch[0].get('context_before', []))} lines")
+                    print(f"  Context after: {len(batch[0].get('context_after', []))} lines")
+                
                 response = requests.post(
                     update_url,
                     json=batch,
@@ -241,21 +263,38 @@ class SolrIndexer:
                 )
                 
                 if response.status_code != 200:
-                    print(f"Error indexing batch {i//batch_size + 1}: {response.text}")
+                    print(f"Error indexing batch {i//batch_size + 1}:")
+                    print(f"Status: {response.status_code}")
+                    print(f"Response: {response.text}")
+                    
+                    # Try to identify problematic document
+                    if "doc=" in response.text:
+                        import re
+                        doc_match = re.search(r'doc=([^\]]+)', response.text)
+                        if doc_match:
+                            print(f"Problematic document ID: {doc_match.group(1)}")
+                    
                     return False
                 
-                print(f"Indexed batch {i//batch_size + 1}/{(len(documents) + batch_size - 1)//batch_size}")
+                print(f"✓ Indexed batch {i//batch_size + 1}/{(len(documents) + batch_size - 1)//batch_size}")
             
             # Commit all changes
+            print("Committing changes...")
             commit_response = requests.post(
                 f"{update_url}?commit=true",
                 headers={'Content-Type': 'application/json'}
             )
             
-            return commit_response.status_code == 200
+            if commit_response.status_code != 200:
+                print(f"Commit failed: {commit_response.text}")
+                return False
+            
+            return True
             
         except Exception as e:
             print(f"Error indexing documents: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def verify_indexing(self) -> Dict[str, Any]:

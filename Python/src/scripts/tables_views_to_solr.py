@@ -185,21 +185,90 @@ class TableViewsProcessor:
             }
     
     def _parse_ripgrep_json(self, rg_output: str) -> List[Dict[str, Any]]:
-        """Parse ripgrep JSON output into structured data."""
-        matches = []
+        """Parse ripgrep JSON output into structured data with context."""
+        all_entries = []
         
+        # Parse all entries (matches and context)
         for line in rg_output.strip().split('\n'):
             if not line:
                 continue
                 
             try:
                 data = json.loads(line)
-                if data.get('type') == 'match':
-                    matches.append(data)
+                if data.get('type') in ['match', 'context']:
+                    all_entries.append(data)
             except json.JSONDecodeError:
                 continue
         
-        return matches
+        # Group entries by file and organize matches with their context
+        matches_with_context = []
+        
+        i = 0
+        while i < len(all_entries):
+            entry = all_entries[i]
+            
+            if entry.get('type') == 'match':
+                match_data = entry
+                file_path = match_data['data']['path']['text']
+                match_line_num = match_data['data']['line_number']
+                
+                # Collect context before this match
+                context_before = []
+                j = i - 1
+                while j >= 0 and all_entries[j].get('type') == 'context':
+                    ctx_entry = all_entries[j]
+                    if (ctx_entry['data']['path']['text'] == file_path and 
+                        ctx_entry['data']['line_number'] < match_line_num):
+                        # Handle different line text formats
+                        line_text = ''
+                        if 'lines' in ctx_entry['data']:
+                            line_text = ctx_entry['data']['lines'].get('text', '')
+                        elif 'text' in ctx_entry['data']:
+                            line_text = ctx_entry['data']['text']
+                        
+                        context_before.insert(0, {
+                            'line_number': ctx_entry['data']['line_number'],
+                            'line_text': line_text
+                        })
+                    else:
+                        break
+                    j -= 1
+                
+                # Collect context after this match
+                context_after = []
+                j = i + 1
+                while j < len(all_entries) and all_entries[j].get('type') == 'context':
+                    ctx_entry = all_entries[j]
+                    if (ctx_entry['data']['path']['text'] == file_path and 
+                        ctx_entry['data']['line_number'] > match_line_num):
+                        # Handle different line text formats
+                        line_text = ''
+                        if 'lines' in ctx_entry['data']:
+                            line_text = ctx_entry['data']['lines'].get('text', '')
+                        elif 'text' in ctx_entry['data']:
+                            line_text = ctx_entry['data']['text']
+                        
+                        context_after.append({
+                            'line_number': ctx_entry['data']['line_number'],
+                            'line_text': line_text
+                        })
+                    else:
+                        break
+                    j += 1
+                
+                # Add context to match data
+                enhanced_match = {
+                    'type': 'match',
+                    'data': match_data['data'].copy()
+                }
+                enhanced_match['data']['context_before'] = context_before
+                enhanced_match['data']['context_after'] = context_after
+                
+                matches_with_context.append(enhanced_match)
+            
+            i += 1
+        
+        return matches_with_context
     
     def _format_match_result(self, object_name: str, matches: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Format match results for output."""
@@ -218,11 +287,17 @@ class TableViewsProcessor:
             line_number = match['data']['line_number']
             line_text = match['data']['lines']['text']
             
+            # Extract context information
+            context_before = match['data'].get('context_before', [])
+            context_after = match['data'].get('context_after', [])
+            
             files_data[file_path].append({
                 'line_number': line_number,
                 'line_text': line_text,
                 'match_start': match['data'].get('submatches', [{}])[0].get('start', 0),
-                'match_end': match['data'].get('submatches', [{}])[0].get('end', 0)
+                'match_end': match['data'].get('submatches', [{}])[0].get('end', 0),
+                'context_before': context_before,
+                'context_after': context_after
             })
         
         return {
