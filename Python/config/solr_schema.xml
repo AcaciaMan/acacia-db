@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+Solr Schema for Oracle DB Objects Ripgrep Search Results
+
+This schema is designed to store the results from the tables_views_to_solr.py script
+which searches for Oracle database object mentions in source code using ripgrep.
+-->
+
+<schema name="oracle-db-search-results" version="1.6">
+
+  <!-- Field Types -->
+  
+  <!-- String field type for exact matching -->
+  <fieldType name="string" class="solr.StrField" sortMissingLast="true" />
+  
+  <!-- Text field type for full-text search -->
+  <fieldType name="text_general" class="solr.TextField" positionIncrementGap="100">
+    <analyzer type="index">
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.StopFilterFactory" ignoreCase="true" words="stopwords.txt" />
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+    <analyzer type="query">
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.StopFilterFactory" ignoreCase="true" words="stopwords.txt" />
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+  </fieldType>
+  
+  <!-- Text field for source code with minimal processing -->
+  <fieldType name="text_code" class="solr.TextField" positionIncrementGap="100">
+    <analyzer type="index">
+      <tokenizer class="solr.WhitespaceTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+    <analyzer type="query">
+      <tokenizer class="solr.WhitespaceTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+  </fieldType>
+  
+  <!-- Integer field type -->
+  <fieldType name="int" class="solr.TrieIntField" precisionStep="0" positionIncrementGap="0"/>
+  
+  <!-- Long field type -->
+  <fieldType name="long" class="solr.TrieLongField" precisionStep="0" positionIncrementGap="0"/>
+  
+  <!-- Boolean field type -->
+  <fieldType name="boolean" class="solr.BoolField" sortMissingLast="true"/>
+  
+  <!-- Date field type -->
+  <fieldType name="date" class="solr.TrieDateField" precisionStep="0" positionIncrementGap="0"/>
+  
+  <!-- Path field type for file paths -->
+  <fieldType name="path" class="solr.TextField" positionIncrementGap="100">
+    <analyzer>
+      <tokenizer class="solr.PathHierarchyTokenizerFactory" delimiter="/" />
+    </analyzer>
+  </fieldType>
+
+  <!-- Fields Definition -->
+  
+  <!-- Required Solr fields -->
+  <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false" />
+  <field name="_version_" type="long" indexed="true" stored="true"/>
+  
+  <!-- Search Configuration Fields -->
+  <field name="config_name" type="string" indexed="true" stored="true" />
+  <field name="source_code_folder" type="string" indexed="true" stored="true" />
+  <field name="tables_views_file" type="string" indexed="true" stored="true" />
+  <field name="search_timestamp" type="date" indexed="true" stored="true" />
+  <field name="search_method" type="string" indexed="true" stored="true" /> <!-- ripgrep or python_grep -->
+  
+  <!-- Oracle DB Object Fields -->
+  <field name="object_name" type="string" indexed="true" stored="true" />
+  <field name="object_type" type="string" indexed="true" stored="true" /> <!-- TABLE or VIEW -->
+  <field name="object_owner" type="string" indexed="true" stored="true" />
+  <field name="found" type="boolean" indexed="true" stored="true" />
+  <field name="total_matches" type="int" indexed="true" stored="true" />
+  <field name="total_files" type="int" indexed="true" stored="true" />
+  
+  <!-- Match Details Fields -->
+  <field name="match_id" type="string" indexed="true" stored="true" /> <!-- Unique ID for each match -->
+  <field name="file_path" type="path" indexed="true" stored="true" />
+  <field name="file_name" type="string" indexed="true" stored="true" />
+  <field name="file_extension" type="string" indexed="true" stored="true" />
+  <field name="line_number" type="int" indexed="true" stored="true" />
+  <field name="line_text" type="text_code" indexed="true" stored="true" />
+  <field name="match_start" type="int" indexed="true" stored="true" />
+  <field name="match_end" type="int" indexed="true" stored="true" />
+  <field name="context_before" type="text_code" indexed="true" stored="true" multiValued="true" />
+  <field name="context_after" type="text_code" indexed="true" stored="true" multiValued="true" />
+  
+  <!-- Summary Fields -->
+  <field name="summary_total_objects" type="int" indexed="true" stored="true" />
+  <field name="summary_found_objects" type="int" indexed="true" stored="true" />
+  <field name="summary_total_matches" type="int" indexed="true" stored="true" />
+  <field name="summary_success_rate" type="string" indexed="true" stored="true" />
+  
+  <!-- Full Text Search Fields -->
+  <field name="all_text" type="text_general" indexed="true" stored="false" multiValued="true" />
+  <field name="code_content" type="text_code" indexed="true" stored="false" multiValued="true" />
+  
+  <!-- Error Handling Fields -->
+  <field name="error_message" type="text_general" indexed="true" stored="true" />
+  <field name="has_error" type="boolean" indexed="true" stored="true" />
+
+  <!-- Copy Fields for Full-Text Search -->
+  <copyField source="object_name" dest="all_text"/>
+  <copyField source="file_path" dest="all_text"/>
+  <copyField source="line_text" dest="all_text"/>
+  <copyField source="line_text" dest="code_content"/>
+  <copyField source="context_before" dest="code_content"/>
+  <copyField source="context_after" dest="code_content"/>
+  
+  <!-- Dynamic Fields -->
+  <dynamicField name="*_s" type="string" indexed="true" stored="true" />
+  <dynamicField name="*_i" type="int" indexed="true" stored="true" />
+  <dynamicField name="*_l" type="long" indexed="true" stored="true" />
+  <dynamicField name="*_t" type="text_general" indexed="true" stored="true" />
+  <dynamicField name="*_b" type="boolean" indexed="true" stored="true" />
+  <dynamicField name="*_dt" type="date" indexed="true" stored="true" />
+
+  <!-- Field to use to determine and enforce document uniqueness -->
+  <uniqueKey>id</uniqueKey>
+
+</schema>
