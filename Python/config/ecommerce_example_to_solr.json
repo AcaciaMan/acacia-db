@@ -1,0 +1,34 @@
+{
+  "config_name": "ecommerce_example_to_solr",
+  "description": "E-commerce database analysis for customer journey and product relationship discovery",
+  "source_data": {
+    "tables_views_file": "external/ecommerce_examples/ecommerce_schema.json",
+    "source_code_paths": [
+      "/path/to/ecommerce/src",
+      "/path/to/shopping/cart/code",
+      "/path/to/order/processing"
+    ]
+  },
+  "analysis_focus": [
+    "customer_journey_mapping",
+    "product_catalog_usage",
+    "order_processing_flows",
+    "inventory_management_patterns"
+  ],
+  "solr_config": {
+    "core_name": "ecommerce_db_search",
+    "url": "http://localhost:8983/solr"
+  },
+  "business_domains": {
+    "customer_management": ["CUSTOMERS"],
+    "order_processing": ["ORDERS", "ORDER_ITEMS"],
+    "product_catalog": ["PRODUCTS", "CATEGORIES"],
+    "reporting": ["ORDER_SUMMARY"]
+  },
+  "expected_insights": [
+    "Which product tables are most frequently accessed",
+    "Customer data usage patterns across different modules",
+    "Order processing bottlenecks through database access patterns",
+    "Cross-selling opportunities through product relationship analysis"
+  ]
+}
