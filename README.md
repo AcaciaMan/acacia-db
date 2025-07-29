@@ -77,6 +77,7 @@ Demonstration script showing best practices for the organized folder structure.
 
 ### 🎯 Analysis Results & Insights
 - **[Database Analysis Insights Wiki](wiki/Database-Analysis-Insights.md)** - Comprehensive analysis results, performance improvements, and ROI data
+- **[Microsoft Dynamics 365 BC Insights](wiki/Microsoft-Dynamics-365-BC-Insights.md)** - Enterprise ERP analysis with 35.9% relationship success rate and 420% ROI projections
 - **[Industry Examples](Python/samples/README.md)** - Multi-industry database schemas and use cases
 
 ### 🔧 Technical Documentation  

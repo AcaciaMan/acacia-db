@@ -13,6 +13,15 @@ Welcome to the acacia-db project wiki! This collection of documents provides com
 - **156 cross-selling opportunities** discovered
 - Analysis results from Academic, HR, and E-commerce systems
 
+### [Microsoft Dynamics 365 BC Insights](Microsoft-Dynamics-365-BC-Insights.md)
+**Enterprise ERP Analysis** - Comprehensive Microsoft Dynamics 365 Business Central analysis showing AL table relationships, VAT processing patterns, and ERP optimization opportunities.
+
+**Key Highlights:**
+- **48,854 relationships analyzed** with 35.9% success rate
+- **420% 3-year ROI projection** for ERP optimization
+- **VAT as central hub** with 27,174 Sales-VAT co-occurrences  
+- **Business module integration** patterns and performance optimization
+
 ## 🏭 Industry Examples
 
 ### Academic Management Systems
@@ -29,6 +38,12 @@ Welcome to the acacia-db project wiki! This collection of documents provides com
 - Customer journey optimization (18% conversion boost)
 - Product catalog relationship analysis
 - Order processing efficiency improvements
+
+### Enterprise ERP Systems (Microsoft Dynamics 365)
+- VAT processing hub analysis (27,174 Sales-VAT relationships)
+- Multi-module integration patterns discovery
+- Financial compliance and audit trail optimization
+- AL table relationship mapping across 48,854 objects
 
 ## 🔍 Analysis Methodologies
 
