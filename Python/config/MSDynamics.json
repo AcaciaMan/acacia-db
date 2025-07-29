@@ -1,0 +1,13 @@
+{
+    "script_folder": "MSDynamics",
+    "source_code_folder": {
+        "path": "C:/work/GitHub/MSDyn"
+    },
+    "destination": {
+        "type": "solr",
+        "connection": {
+        "url": "http://localhost:8983/solr/MSDyn"
+        }
+    },
+    "tables_views": "C:\\work\\GitHub\\acacia-db\\Python\\data\\external\\msdyn\\tables_views.json"
+}

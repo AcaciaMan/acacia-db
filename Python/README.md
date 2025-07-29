@@ -88,6 +88,19 @@ Python/
      python src/scripts/analyze_object_relations.py --min-score 0.3
      ```
 
+4. **`src/scripts/parse_al_tables.py`** - AL Table Parser for Microsoft Dynamics 365 BC
+   - Parses *.Table.al files to extract table and column schema information
+   - Supports complex AL syntax including enums, calculated fields, and table relations
+   - Converts AL table definitions to tables_views.json format
+   - Usage examples:
+     ```bash
+     # Parse AL tables using MSDynamics configuration
+     python src/scripts/parse_al_tables.py --config config/MSDynamics.json
+     
+     # Parse with custom configuration
+     python src/scripts/parse_al_tables.py --config path/to/custom/config.json
+     ```
+
 ### Usage Workflow
 
 1. **Search for object mentions**: `python src/scripts/tables_views_to_solr.py`

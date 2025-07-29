@@ -4,7 +4,28 @@ This directory contains real-world database schema examples from various industr
 
 ## Available Examples
 
-### 1. Academic Management System (AD Schema)
+### 1. Microsoft Dynamics 365 Business Central (AL Schema)
+**Domain**: Enterprise Resource Planning (ERP)
+**Tables**: 477 tables covering comprehensive business management
+**File Format**: AL (Application Language) table definitions
+**Key Insights**:
+- Complex business process relationship mapping
+- Financial and operational data integration
+- Multi-module enterprise system analysis
+
+**Business Value**:
+- ERP customization optimization
+- Business process efficiency analysis
+- Module interdependency discovery
+- Performance optimization for large-scale deployments
+
+**Special Features**:
+- Custom AL parser for Microsoft Dynamics 365 BC
+- Handles complex field types and calculated fields
+- Extracts table relationships and constraints
+- Supports enum and complex data types
+
+### 2. Academic Management System (AD Schema)
 **Domain**: Education Technology
 **Tables**: 15 tables covering student management, course administration, faculty tracking
 **Key Insights**:
