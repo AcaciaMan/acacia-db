@@ -1,7 +1,8 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { DatabaseAnalyzer } from './databaseAnalyzer';
+import { DatabaseAnalyzer, DatabaseReference } from './databaseAnalyzer';
+import { DatabaseTreeDataProvider } from './databaseTreeView';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -12,11 +13,43 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('Acacia DB extension is now active!');
 
 	const analyzer = new DatabaseAnalyzer();
+	const treeDataProvider = new DatabaseTreeDataProvider(analyzer);
+	
+	// Register the tree view
+	const treeView = vscode.window.createTreeView('acaciaDbExplorer', {
+		treeDataProvider: treeDataProvider,
+		showCollapseAll: true
+	});
+
+	// Command: Refresh Explorer
+	const refreshExplorer = vscode.commands.registerCommand('acacia-db.refreshExplorer', async () => {
+		await treeDataProvider.analyze();
+	});
+
+	// Command: Open Reference
+	const openReference = vscode.commands.registerCommand('acacia-db.openReference', async (reference: DatabaseReference) => {
+		if (reference) {
+			const document = await vscode.workspace.openTextDocument(reference.filePath);
+			const editor = await vscode.window.showTextDocument(document);
+			const position = new vscode.Position(reference.line - 1, reference.column);
+			editor.selection = new vscode.Selection(position, position);
+			editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+		}
+	});
+
+	// Command: Copy Table Name
+	const copyTableName = vscode.commands.registerCommand('acacia-db.copyTableName', async (item: any) => {
+		if (item && item.label) {
+			await vscode.env.clipboard.writeText(item.label);
+			vscode.window.showInformationMessage(`Copied table name: ${item.label}`);
+		}
+	});
 
 	// Command: Analyze Workspace
 	const analyzeWorkspace = vscode.commands.registerCommand('acacia-db.analyzeWorkspace', async () => {
 		try {
-			const tableUsageMap = await analyzer.analyzeWorkspace();
+			await treeDataProvider.analyze();
+			const tableUsageMap = treeDataProvider.getTableUsageMap();
 			
 			if (tableUsageMap.size === 0) {
 				vscode.window.showInformationMessage('No database references found in workspace.');
@@ -26,9 +59,6 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.window.showInformationMessage(
 				`Analysis complete! Found ${tableUsageMap.size} tables with references.`
 			);
-
-			// Show report
-			await vscode.commands.executeCommand('acacia-db.showDatabaseReport');
 		} catch (error) {
 			vscode.window.showErrorMessage(`Analysis failed: ${error}`);
 		}
@@ -106,10 +136,10 @@ export function activate(context: vscode.ExtensionContext) {
 	// Command: Show Database Report
 	const showDatabaseReport = vscode.commands.registerCommand('acacia-db.showDatabaseReport', async () => {
 		try {
-			const tableUsageMap = await analyzer.analyzeWorkspace();
+			const tableUsageMap = treeDataProvider.getTableUsageMap();
 			
 			if (tableUsageMap.size === 0) {
-				vscode.window.showInformationMessage('No database references found in workspace.');
+				vscode.window.showInformationMessage('No database references found. Please analyze workspace first.');
 				return;
 			}
 
@@ -132,6 +162,10 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	context.subscriptions.push(
+		treeView,
+		refreshExplorer,
+		openReference,
+		copyTableName,
 		analyzeWorkspace,
 		findTableReferences,
 		generateDocumentation,

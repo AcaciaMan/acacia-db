@@ -4,8 +4,13 @@
 
 ## Features
 
-- **🔍 Workspace Analysis**: Scan your entire workspace to find database table and column references across multiple file types (SQL, JavaScript, TypeScript, Java, C#, Python, PHP, Ruby, and more)
-- **📊 Database Usage Reports**: Generate comprehensive reports showing:
+- **� Activity Bar View**: Dedicated sidebar panel showing:
+  - Database analysis summary
+  - Hierarchical tree of tables, files, and references
+  - Quick navigation to any reference with one click
+  - Inline actions for common tasks
+- **�🔍 Workspace Analysis**: Scan your entire workspace to find database table and column references across multiple file types (SQL, JavaScript, TypeScript, Java, C#, Python, PHP, Ruby, and more)
+- **� Database Usage Reports**: Generate comprehensive reports showing:
   - All tables found in your codebase
   - Number of references per table
   - Files containing database references
@@ -16,9 +21,17 @@
 
 ## Usage
 
+### Activity Bar
+
+1. **Click the Acacia DB icon** in the Activity Bar (left sidebar) to open the Database Explorer
+2. **Click the Refresh icon** in the view toolbar to analyze your workspace
+3. **Expand tables** to see files and individual references
+4. **Click any reference** to navigate directly to that line in your code
+5. **Right-click tables** for additional actions like copying the table name
+
 ### Commands
 
-Access these commands via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
+Access these commands via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) or from the Activity Bar view:
 
 1. **Acacia DB: Analyze Database Usage in Workspace**
    - Scans all files in your workspace for database references
@@ -105,11 +118,13 @@ Generate up-to-date documentation of database usage for new team members or exte
 ### 0.0.1
 
 Initial release of Acacia DB:
+- Activity Bar view with hierarchical tree display
 - Workspace-wide database usage analysis
-- Table reference search
+- Table reference search with quick navigation
 - Documentation generation
 - Customizable scan patterns
 - HTML and Markdown reports
+- Inline actions for common tasks
 
 ## Contributing
 

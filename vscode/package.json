@@ -23,24 +23,94 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "acacia-db",
+          "title": "Acacia DB",
+          "icon": "resources/database-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "acacia-db": [
+        {
+          "id": "acaciaDbExplorer",
+          "name": "Database Explorer",
+          "icon": "resources/database-icon.svg",
+          "contextualTitle": "Acacia DB"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "acacia-db.analyzeWorkspace",
-        "title": "Acacia DB: Analyze Database Usage in Workspace"
+        "title": "Analyze Workspace",
+        "icon": "$(refresh)"
       },
       {
         "command": "acacia-db.findTableReferences",
-        "title": "Acacia DB: Find Table References"
+        "title": "Find Table References",
+        "icon": "$(search)"
       },
       {
         "command": "acacia-db.generateDocumentation",
-        "title": "Acacia DB: Generate Database Documentation"
+        "title": "Generate Documentation",
+        "icon": "$(book)"
       },
       {
         "command": "acacia-db.showDatabaseReport",
-        "title": "Acacia DB: Show Database Usage Report"
+        "title": "Show Database Usage Report",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "acacia-db.refreshExplorer",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "acacia-db.openReference",
+        "title": "Open Reference"
+      },
+      {
+        "command": "acacia-db.copyTableName",
+        "title": "Copy Table Name",
+        "icon": "$(copy)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "acacia-db.analyzeWorkspace",
+          "when": "view == acaciaDbExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "acacia-db.refreshExplorer",
+          "when": "view == acaciaDbExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "acacia-db.generateDocumentation",
+          "when": "view == acaciaDbExplorer"
+        },
+        {
+          "command": "acacia-db.showDatabaseReport",
+          "when": "view == acaciaDbExplorer"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "acacia-db.copyTableName",
+          "when": "view == acaciaDbExplorer && viewItem == table",
+          "group": "inline"
+        },
+        {
+          "command": "acacia-db.findTableReferences",
+          "when": "view == acaciaDbExplorer && viewItem == table"
+        }
+      ]
+    },
     "configuration": {
       "title": "Acacia DB",
       "properties": {
