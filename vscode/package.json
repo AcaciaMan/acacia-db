@@ -1,0 +1,111 @@
+{
+  "name": "acacia-db",
+  "displayName": "Acacia DB",
+  "description": "Analyzes database table and column usage across your source code. Find relationships, generate documentation, and optimize database access patterns. Perfect for legacy system analysis, migration planning, and performance optimization.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "database",
+    "sql",
+    "analysis",
+    "migration",
+    "documentation",
+    "legacy",
+    "optimization"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "acacia-db.analyzeWorkspace",
+        "title": "Acacia DB: Analyze Database Usage in Workspace"
+      },
+      {
+        "command": "acacia-db.findTableReferences",
+        "title": "Acacia DB: Find Table References"
+      },
+      {
+        "command": "acacia-db.generateDocumentation",
+        "title": "Acacia DB: Generate Database Documentation"
+      },
+      {
+        "command": "acacia-db.showDatabaseReport",
+        "title": "Acacia DB: Show Database Usage Report"
+      }
+    ],
+    "configuration": {
+      "title": "Acacia DB",
+      "properties": {
+        "acaciaDb.scanPatterns": {
+          "type": "array",
+          "default": [
+            "**/*.sql",
+            "**/*.js",
+            "**/*.ts",
+            "**/*.java",
+            "**/*.cs",
+            "**/*.py",
+            "**/*.php",
+            "**/*.rb"
+          ],
+          "description": "File patterns to scan for database references"
+        },
+        "acaciaDb.excludePatterns": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/build/**",
+            "**/.git/**"
+          ],
+          "description": "Patterns to exclude from scanning"
+        },
+        "acaciaDb.tablePatterns": {
+          "type": "array",
+          "default": [
+            "FROM\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+            "JOIN\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+            "INTO\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+            "UPDATE\\s+([a-zA-Z_][a-zA-Z0-9_]*)"
+          ],
+          "description": "Regular expression patterns to detect table names"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.105.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "eslint": "^9.36.0",
+    "esbuild": "^0.25.10",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
