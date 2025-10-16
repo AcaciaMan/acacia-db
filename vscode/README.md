@@ -21,6 +21,36 @@
 
 ## Usage
 
+### Configuration View
+
+1. **Open the Acacia DB activity bar** by clicking the database icon in the left sidebar
+2. **In the Configuration section**:
+   - Click **"Tables/Views Definition"** to select your `tables_views.json` file
+   - Click **"Source Code Folder"** to select the folder you want to analyze
+   - View real-time status indicators showing if files/folders are found
+3. **Optional**: Right-click on configured items to clear them
+
+#### Creating a tables_views.json File
+
+Create a JSON file with your database schema:
+
+```json
+{
+  "tables": [
+    "users",
+    "orders",
+    "products",
+    "customers"
+  ],
+  "views": [
+    "user_orders_view",
+    "product_summary_view"
+  ]
+}
+```
+
+This helps filter analysis to only known tables/views, reducing false positives.
+
 ### Activity Bar
 
 1. **Click the Acacia DB icon** in the Activity Bar (left sidebar) to open the Database Explorer
@@ -86,6 +116,10 @@ Customize Acacia DB through VS Code settings:
 - **`acaciaDb.scanPatterns`**: File glob patterns to scan for database references
 - **`acaciaDb.excludePatterns`**: Patterns to exclude from scanning (e.g., node_modules, build folders)
 - **`acaciaDb.tablePatterns`**: Regular expression patterns to detect table names in your code
+- **`acaciaDb.tablesViewsFile`**: Path to tables_views.json file containing database schema definitions
+- **`acaciaDb.sourceFolder`**: Source code folder to analyze for database references
+
+> **Tip**: Use the Configuration view in the Activity Bar for an easier way to set `tablesViewsFile` and `sourceFolder`!
 
 ## Use Cases
 
@@ -118,8 +152,10 @@ Generate up-to-date documentation of database usage for new team members or exte
 ### 0.0.1
 
 Initial release of Acacia DB:
+- Configuration view for setting tables_views.json and source folder
 - Activity Bar view with hierarchical tree display
 - Workspace-wide database usage analysis
+- Filtered analysis based on known tables/views
 - Table reference search with quick navigation
 - Documentation generation
 - Customizable scan patterns

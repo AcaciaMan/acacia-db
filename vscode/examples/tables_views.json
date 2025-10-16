@@ -1,0 +1,17 @@
+{
+  "tables": [
+    "users",
+    "orders",
+    "products",
+    "customers",
+    "invoices",
+    "order_items",
+    "categories",
+    "suppliers"
+  ],
+  "views": [
+    "user_orders_view",
+    "product_summary_view",
+    "customer_analytics_view"
+  ]
+}

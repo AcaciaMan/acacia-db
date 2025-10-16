@@ -3,6 +3,7 @@
 import * as vscode from 'vscode';
 import { DatabaseAnalyzer, DatabaseReference } from './databaseAnalyzer';
 import { DatabaseTreeDataProvider } from './databaseTreeView';
+import { ConfigurationTreeDataProvider } from './configurationTreeView';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -14,11 +15,63 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const analyzer = new DatabaseAnalyzer();
 	const treeDataProvider = new DatabaseTreeDataProvider(analyzer);
+	const configProvider = new ConfigurationTreeDataProvider();
 	
-	// Register the tree view
+	// Register the tree views
 	const treeView = vscode.window.createTreeView('acaciaDbExplorer', {
 		treeDataProvider: treeDataProvider,
 		showCollapseAll: true
+	});
+
+	const configView = vscode.window.createTreeView('acaciaDbConfiguration', {
+		treeDataProvider: configProvider,
+		showCollapseAll: false
+	});
+
+	// Command: Select Tables/Views JSON File
+	const selectTablesFile = vscode.commands.registerCommand('acacia-db.selectTablesFile', async () => {
+		const fileUri = await vscode.window.showOpenDialog({
+			canSelectFiles: true,
+			canSelectFolders: false,
+			canSelectMany: false,
+			filters: {
+				'JSON Files': ['json'],
+				'All Files': ['*']
+			},
+			title: 'Select Tables/Views JSON File'
+		});
+
+		if (fileUri && fileUri[0]) {
+			await configProvider.setTablesFile(fileUri[0].fsPath);
+			vscode.window.showInformationMessage(`Tables file set to: ${fileUri[0].fsPath}`);
+		}
+	});
+
+	// Command: Select Source Folder
+	const selectSourceFolder = vscode.commands.registerCommand('acacia-db.selectSourceFolder', async () => {
+		const folderUri = await vscode.window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			title: 'Select Source Code Folder to Analyze'
+		});
+
+		if (folderUri && folderUri[0]) {
+			await configProvider.setSourceFolder(folderUri[0].fsPath);
+			vscode.window.showInformationMessage(`Source folder set to: ${folderUri[0].fsPath}`);
+		}
+	});
+
+	// Command: Clear Tables File
+	const clearTablesFile = vscode.commands.registerCommand('acacia-db.clearTablesFile', async () => {
+		await configProvider.clearTablesFile();
+		vscode.window.showInformationMessage('Tables file cleared');
+	});
+
+	// Command: Clear Source Folder
+	const clearSourceFolder = vscode.commands.registerCommand('acacia-db.clearSourceFolder', async () => {
+		await configProvider.clearSourceFolder();
+		vscode.window.showInformationMessage('Source folder cleared');
 	});
 
 	// Command: Refresh Explorer
@@ -48,6 +101,13 @@ export function activate(context: vscode.ExtensionContext) {
 	// Command: Analyze Workspace
 	const analyzeWorkspace = vscode.commands.registerCommand('acacia-db.analyzeWorkspace', async () => {
 		try {
+			const config = configProvider.getConfig();
+			
+			// Set the analyzer configuration if specified
+			if (config.sourceFolder || config.tablesViewsFile) {
+				analyzer.setConfig(config);
+			}
+
 			await treeDataProvider.analyze();
 			const tableUsageMap = treeDataProvider.getTableUsageMap();
 			
@@ -163,6 +223,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		treeView,
+		configView,
+		selectTablesFile,
+		selectSourceFolder,
+		clearTablesFile,
+		clearSourceFolder,
 		refreshExplorer,
 		openReference,
 		copyTableName,

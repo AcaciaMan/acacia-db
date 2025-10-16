@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export interface DatabaseReference {
     tableName: string;
@@ -16,9 +17,22 @@ export interface TableUsage {
     files: Set<string>;
 }
 
+export interface AnalysisConfig {
+    tablesViewsFile?: string;
+    sourceFolder?: string;
+}
+
+export interface TablesViewsSchema {
+    tables?: string[];
+    views?: string[];
+    [key: string]: any;
+}
+
 export class DatabaseAnalyzer {
     private tablePatterns: RegExp[];
     private columnPatterns: RegExp[];
+    private config?: AnalysisConfig;
+    private knownTables: Set<string> = new Set();
     
     constructor() {
         // Default patterns for detecting table references
@@ -38,6 +52,41 @@ export class DatabaseAnalyzer {
         ];
     }
 
+    setConfig(config: AnalysisConfig): void {
+        this.config = config;
+        this.loadTablesFromFile();
+    }
+
+    private loadTablesFromFile(): void {
+        this.knownTables.clear();
+        
+        if (!this.config?.tablesViewsFile) {
+            return;
+        }
+
+        try {
+            if (fs.existsSync(this.config.tablesViewsFile)) {
+                const content = fs.readFileSync(this.config.tablesViewsFile, 'utf8');
+                const schema: TablesViewsSchema = JSON.parse(content);
+                
+                // Load tables
+                if (schema.tables && Array.isArray(schema.tables)) {
+                    schema.tables.forEach(table => this.knownTables.add(table.toLowerCase()));
+                }
+                
+                // Load views
+                if (schema.views && Array.isArray(schema.views)) {
+                    schema.views.forEach(view => this.knownTables.add(view.toLowerCase()));
+                }
+
+                console.log(`Loaded ${this.knownTables.size} tables/views from ${this.config.tablesViewsFile}`);
+            }
+        } catch (error) {
+            console.error('Error loading tables/views file:', error);
+            vscode.window.showWarningMessage(`Failed to load tables file: ${error}`);
+        }
+    }
+
     async analyzeWorkspace(): Promise<Map<string, TableUsage>> {
         const config = vscode.workspace.getConfiguration('acaciaDb');
         const scanPatterns = config.get<string[]>('scanPatterns') || ['**/*.{sql,js,ts,java,cs,py,php,rb}'];
@@ -45,11 +94,27 @@ export class DatabaseAnalyzer {
 
         const tableUsageMap = new Map<string, TableUsage>();
 
-        // Find all files matching the patterns
-        const files = await vscode.workspace.findFiles(
-            `{${scanPatterns.join(',')}}`,
-            `{${excludePatterns.join(',')}}`
-        );
+        let files: vscode.Uri[] = [];
+
+        // If source folder is configured, use it instead of workspace
+        if (this.config?.sourceFolder) {
+            try {
+                const sourceFolderUri = vscode.Uri.file(this.config.sourceFolder);
+                const pattern = new vscode.RelativePattern(sourceFolderUri, `{${scanPatterns.join(',')}}`);
+                files = await vscode.workspace.findFiles(pattern, `{${excludePatterns.join(',')}}`);
+                
+                vscode.window.showInformationMessage(`Analyzing ${files.length} files in: ${this.config.sourceFolder}`);
+            } catch (error) {
+                vscode.window.showErrorMessage(`Error scanning source folder: ${error}`);
+                return tableUsageMap;
+            }
+        } else {
+            // Find all files matching the patterns in workspace
+            files = await vscode.workspace.findFiles(
+                `{${scanPatterns.join(',')}}`,
+                `{${excludePatterns.join(',')}}`
+            );
+        }
 
         const totalFiles = files.length;
         await vscode.window.withProgress({
@@ -67,6 +132,20 @@ export class DatabaseAnalyzer {
                 await this.analyzeFile(file, tableUsageMap);
             }
         });
+
+        // Filter tables if we have a known tables list
+        if (this.knownTables.size > 0) {
+            const filteredMap = new Map<string, TableUsage>();
+            for (const [tableName, usage] of tableUsageMap) {
+                if (this.knownTables.has(tableName.toLowerCase())) {
+                    filteredMap.set(tableName, usage);
+                }
+            }
+            vscode.window.showInformationMessage(
+                `Filtered to ${filteredMap.size} known tables from ${tableUsageMap.size} total matches`
+            );
+            return filteredMap;
+        }
 
         return tableUsageMap;
     }
