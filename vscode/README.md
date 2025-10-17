@@ -2,6 +2,8 @@
 
 **Acacia DB** is a Visual Studio Code extension that analyzes database table and column usage across your source code. It helps you find relationships, generate documentation, and optimize database access patterns—perfect for legacy system analysis, migration planning, and performance optimization.
 
+<img alt="Screenshot_acacia_db" src="https://github.com/user-attachments/assets/7feb13b4-2427-41f4-b43c-70edb667eb9d" />
+
 ## Features
 
 - **📊 Activity Bar View**: Dedicated sidebar panel showing:
