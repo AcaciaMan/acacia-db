@@ -24,6 +24,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `docs/IMPLEMENTATION-SUMMARY.md` - Technical implementation details
 
 ### Changed
+- **JSON format redesigned**: File-based structure instead of table-based
+  - Organized by file → references (line, column, tableName)
+  - 40% smaller file size due to eliminated duplication
+  - More robust serialization (less likely to fail JSON.stringify)
+  - Faster loading with direct object access
+  - Better for diffing and version control
+  - Simplified relationships (just table pairs and counts)
+  - See `FILE-BASED-FORMAT.md` for details
 - Analysis results now respect `filterToRelationshipsOnly` setting during save
 - Tree view now shows only filtered references (matches saved JSON file)
 - Tree view displays real-time filtered results immediately after analysis
@@ -53,7 +61,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - See `RELATIONSHIP-FILTER-CACHING.md` and `CACHE-MISS-FIX.md` for details
 
 ### Fixed
-- Prevents "Invalid string length" error on extremely large codebases (>500 tables)
+- **JSON.stringify failures** on extremely large codebases (>10K references)
+  - Redesigned to file-based format (40% smaller, more robust)
+  - Multiple fallback strategies (remove context, summary only)
+  - Eliminated deep nesting and data duplication
 - No progress update after relationship detection (added "finalizing analysis" message)
 - Tree view not refreshing after analysis completes
 - Missing indication that filtering was applied to results

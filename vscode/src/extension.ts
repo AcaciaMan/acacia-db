@@ -79,6 +79,35 @@ export function activate(context: vscode.ExtensionContext) {
 		await treeDataProvider.analyze();
 	});
 
+	// Command: Filter Tables
+	const filterTables = vscode.commands.registerCommand('acacia-db.filterTables', async () => {
+		const currentFilter = treeDataProvider.getFilter();
+		const filterText = await vscode.window.showInputBox({
+			prompt: 'Enter text to filter table names',
+			placeHolder: 'e.g. user, order, customer',
+			value: currentFilter,
+			title: 'Filter Tables'
+		});
+
+		if (filterText !== undefined) {
+			treeDataProvider.setFilter(filterText);
+			if (filterText.trim().length > 0) {
+				vscode.window.showInformationMessage(`Filtering tables by: "${filterText}"`);
+			}
+		}
+	});
+
+	// Command: Clear Filter
+	const clearFilter = vscode.commands.registerCommand('acacia-db.clearFilter', async () => {
+		const currentFilter = treeDataProvider.getFilter();
+		if (currentFilter.length > 0) {
+			treeDataProvider.clearFilter();
+			vscode.window.showInformationMessage('Filter cleared');
+		} else {
+			vscode.window.showInformationMessage('No filter active');
+		}
+	});
+
 	// Command: Open Reference
 	const openReference = vscode.commands.registerCommand('acacia-db.openReference', async (reference: DatabaseReference) => {
 		if (reference) {
@@ -227,6 +256,8 @@ export function activate(context: vscode.ExtensionContext) {
 		clearTablesFile,
 		clearSourceFolder,
 		refreshExplorer,
+		filterTables,
+		clearFilter,
 		openReference,
 		copyTableName,
 		analyzeWorkspace,

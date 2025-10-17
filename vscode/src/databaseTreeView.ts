@@ -9,11 +9,26 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
     private tableUsageMap: Map<string, TableUsage> = new Map();
     private analyzer: DatabaseAnalyzer;
     private lastAnalysisTimestamp?: string;
+    private filterText: string = '';
 
     constructor(analyzer: DatabaseAnalyzer) {
         this.analyzer = analyzer;
         // Load cached results on startup
         this.loadCachedResults();
+    }
+
+    setFilter(filterText: string): void {
+        this.filterText = filterText.toLowerCase().trim();
+        this.refresh();
+    }
+
+    getFilter(): string {
+        return this.filterText;
+    }
+
+    clearFilter(): void {
+        this.filterText = '';
+        this.refresh();
     }
 
     private async loadCachedResults(): Promise<void> {
@@ -53,17 +68,31 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
 
             const items: TreeItem[] = [];
             
-            // Summary item - only count tables with references
-            const tablesWithRefs = Array.from(this.tableUsageMap.values())
+            // Apply filter if set
+            const filterActive = this.filterText.length > 0;
+            
+            // Get tables with references and apply filter
+            let tablesWithRefs = Array.from(this.tableUsageMap.values())
                 .filter(usage => usage.references.length > 0);
+            
+            if (filterActive) {
+                tablesWithRefs = tablesWithRefs.filter(usage => 
+                    usage.tableName.toLowerCase().includes(this.filterText)
+                );
+            }
             
             const totalRefs = tablesWithRefs
                 .reduce((sum, usage) => sum + usage.references.length, 0);
             
-            let summaryLabel = `${tablesWithRefs.length} tables, ${totalRefs} references`;
+            // Show filter indicator in summary
+            let summaryLabel = filterActive 
+                ? `🔍 ${tablesWithRefs.length} of ${Array.from(this.tableUsageMap.values()).filter(u => u.references.length > 0).length} tables`
+                : `${tablesWithRefs.length} tables, ${totalRefs} references`;
             let tooltipText = summaryLabel;
             
-            if (this.lastAnalysisTimestamp) {
+            if (filterActive) {
+                tooltipText = `Filter: "${this.filterText}"\n${tablesWithRefs.length} matching tables, ${totalRefs} references`;
+            } else if (this.lastAnalysisTimestamp) {
                 const analysisDate = new Date(this.lastAnalysisTimestamp);
                 const formattedDate = analysisDate.toLocaleString();
                 tooltipText = `${summaryLabel}\nAnalyzed: ${formattedDate}`;
@@ -78,9 +107,21 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
             summaryItem.tooltip = tooltipText;
             items.push(summaryItem);
 
-            // Table items - only show tables with references
-            const sortedTables = Array.from(this.tableUsageMap.entries())
-                .filter(([_, usage]) => usage.references.length > 0) // Filter out tables with no references
+            // If no tables match filter, show message
+            if (filterActive && tablesWithRefs.length === 0) {
+                const noMatchItem = new TreeItem(
+                    `No tables matching "${this.filterText}"`,
+                    vscode.TreeItemCollapsibleState.None,
+                    'info'
+                );
+                noMatchItem.iconPath = new vscode.ThemeIcon('search-stop');
+                items.push(noMatchItem);
+                return items;
+            }
+
+            // Table items - only show tables with references (and matching filter)
+            const sortedTables = tablesWithRefs
+                .map(usage => [usage.tableName, usage] as [string, TableUsage])
                 .sort((a, b) => {
                     const refDiff = b[1].references.length - a[1].references.length;
                     if (refDiff !== 0) {

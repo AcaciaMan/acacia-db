@@ -67,37 +67,19 @@ export interface TablesViewsSchema {
     [key: string]: any;
 }
 
-// Serializable format for saving to JSON
-interface SerializableTableUsage {
-    tableName: string;
-    references: DatabaseReference[];
-    files: string[];
-}
-
-interface SerializableRelationship {
-    table1: string;
-    table2: string;
-    occurrences: number;
-    files: string[];
-    proximityInstances: Array<{
-        file: string;
-        line1: number;
-        line2: number;
-        distance: number;
-    }>;
-}
-
-interface AnalysisResults {
+// Compact file-based format for JSON storage
+// Match format: "line;column;tableName" (e.g., "10;15;users")
+interface CompactFileBasedResults {
     timestamp: string;
     config: AnalysisConfig;
-    tables: SerializableTableUsage[];
-    relationships: SerializableRelationship[];
+    files: {
+        [filePath: string]: string[]; // Array of compact match strings
+    };
     summary: {
         totalTables: number;
         tablesWithReferences: number;
         totalReferences: number;
         totalFiles: number;
-        relationshipCount: number;
     };
 }
 
@@ -387,25 +369,18 @@ export class DatabaseAnalyzer {
                 fs.mkdirSync(vscodePath, { recursive: true });
             }
 
-            // Limits to prevent JSON from becoming too large
-            const MAX_REFERENCES_PER_TABLE = 1000;  // Limit references per table
-            const MAX_CONTEXT_LENGTH = 200;         // Truncate long context strings
-
             // Get configuration for filtering
             progress?.report({ message: 'Applying filtering and sorting rules...' });
             const config = vscode.workspace.getConfiguration('acaciaDb');
             const filterToRelationshipsOnly = config.get<boolean>('filterToRelationshipsOnly', true);
 
             // Use cached relationship references (already built during analysis)
-            // If cache doesn't exist, build it now (fallback for edge cases)
             let relationshipReferences = new Set<string>();
             if (filterToRelationshipsOnly && this.relationships.size > 0) {
                 if (this.relationshipReferencesCache) {
-                    // Use the cached set - much faster than rebuilding
                     relationshipReferences = this.relationshipReferencesCache;
                     console.log(`Using cached relationship references for JSON export (${relationshipReferences.size} references)`);
                 } else {
-                    // Fallback: build the set if cache is missing
                     console.log('Cache miss - building relationship references for JSON export');
                     const proximityThreshold = this.getProximityThreshold();
                     const filteredMap = this.applyRelationshipFilter(tableUsageMap, proximityThreshold);
@@ -413,113 +388,64 @@ export class DatabaseAnalyzer {
                 }
             }
 
-            // Convert tableUsageMap to serializable format
-            progress?.report({ message: 'Converting table data to JSON format...' });
-            const tables: SerializableTableUsage[] = Array.from(tableUsageMap.values()).map(usage => {
-                // Filter references to only those in relationships (if enabled)
-                let referencesToSave = usage.references;
-                if (filterToRelationshipsOnly && relationshipReferences.size > 0) {
-                    referencesToSave = usage.references.filter(ref => 
-                        relationshipReferences.has(`${usage.tableName}|${ref.filePath}|${ref.line}`)
-                    );
-                }
-                
-                // Sort references by file path (ascending), then by line number (ascending)
-                let sortedReferences = [...referencesToSave].sort((a, b) => {
-                    const pathCompare = a.filePath.localeCompare(b.filePath);
-                    if (pathCompare !== 0) {
-                        return pathCompare;
-                    }
-                    return a.line - b.line;
-                });
-
-                // Limit number of references to prevent excessive file size
-                if (sortedReferences.length > MAX_REFERENCES_PER_TABLE) {
-                    console.warn(`Table ${usage.tableName} has ${sortedReferences.length} references, truncating to ${MAX_REFERENCES_PER_TABLE}`);
-                    sortedReferences = sortedReferences.slice(0, MAX_REFERENCES_PER_TABLE);
-                }
-
-                // Truncate long context strings
-                const referencesWithTruncatedContext = sortedReferences.map(ref => ({
-                    ...ref,
-                    context: ref.context.length > MAX_CONTEXT_LENGTH 
-                        ? ref.context.substring(0, MAX_CONTEXT_LENGTH) + '...'
-                        : ref.context
-                }));
-
-                return {
-                    tableName: usage.tableName,
-                    references: referencesWithTruncatedContext,
-                    files: Array.from(usage.files).sort()
-                };
-            }).filter(table => table.references.length > 0);  // Skip tables with no references after filtering
-
-            // Sort tables: first by reference count (descending), then by name (ascending)
-            tables.sort((a, b) => {
-                const refDiff = b.references.length - a.references.length;
-                if (refDiff !== 0) {
-                    return refDiff;
-                }
-                return a.tableName.localeCompare(b.tableName);
-            });
-
-            // Convert relationships to serializable format
-            progress?.report({ message: 'Processing relationship data...' });
-            const relationships: SerializableRelationship[] = Array.from(this.relationships.values()).map(rel => {
-                // Sort proximity instances by distance (ascending - closest first), then by line1 (ascending)
-                // This matches the tree view sorting for consistency
-                const sortedInstances = [...rel.proximityInstances].sort((a, b) => {
-                    const distDiff = a.distance - b.distance; // Closest proximity first
-                    if (distDiff !== 0) {
-                        return distDiff;
-                    }
-                    return a.line1 - b.line1; // Earliest line if same distance
-                });
-
-                return {
-                    table1: rel.table1,
-                    table2: rel.table2,
-                    occurrences: rel.occurrences,
-                    files: Array.from(rel.files).sort(),
-                    proximityInstances: sortedInstances
-                };
-            });
-
-            // Sort relationships: first by occurrences (descending), then by table names (ascending)
-            relationships.sort((a, b) => {
-                const occDiff = b.occurrences - a.occurrences;
-                if (occDiff !== 0) {
-                    return occDiff;
-                }
-                const name1 = `${a.table1}|${a.table2}`;
-                const name2 = `${b.table1}|${b.table2}`;
-                return name1.localeCompare(name2);
-            });
-
-            // Calculate summary statistics
-            const allFiles = new Set<string>();
-            let totalReferences = 0;
+            // Convert to compact file-based format
+            progress?.report({ message: 'Converting to compact format...' });
+            const fileMap: { [filePath: string]: string[] } = {};
             
-            for (const usage of tableUsageMap.values()) {
-                totalReferences += usage.references.length;
-                usage.files.forEach(file => allFiles.add(file));
+            for (const [tableName, usage] of tableUsageMap) {
+                for (const ref of usage.references) {
+                    // Apply filtering if enabled
+                    if (filterToRelationshipsOnly && relationshipReferences.size > 0) {
+                        if (!relationshipReferences.has(`${tableName}|${ref.filePath}|${ref.line}`)) {
+                            continue; // Skip references not in relationships
+                        }
+                    }
+
+                    // Initialize file array if needed
+                    if (!fileMap[ref.filePath]) {
+                        fileMap[ref.filePath] = [];
+                    }
+
+                    // Add compact reference: "line;column;tableName"
+                    fileMap[ref.filePath].push(`${ref.line};${ref.column};${tableName}`);
+                }
             }
 
-            const results: AnalysisResults = {
+            // Sort references within each file by line number
+            progress?.report({ message: 'Sorting references...' });
+            for (const filePath in fileMap) {
+                fileMap[filePath].sort((a, b) => {
+                    // Extract line numbers from compact format
+                    const lineA = parseInt(a.split(';')[0], 10);
+                    const lineB = parseInt(b.split(';')[0], 10);
+                    return lineA - lineB;
+                });
+            }
+
+            // Calculate summary statistics
+            const allTables = new Set<string>();
+            let totalReferences = 0;
+            
+            for (const [tableName, usage] of tableUsageMap) {
+                if (usage.references.length > 0) {
+                    allTables.add(tableName);
+                }
+                totalReferences += usage.references.length;
+            }
+
+            const results: CompactFileBasedResults = {
                 timestamp: new Date().toISOString(),
                 config: this.config || {},
-                tables,
-                relationships,
+                files: fileMap,
                 summary: {
                     totalTables: this.tableNames.length,
-                    tablesWithReferences: tableUsageMap.size,
-                    totalReferences,
-                    totalFiles: allFiles.size,
-                    relationshipCount: this.relationships.size
+                    tablesWithReferences: allTables.size,
+                    totalReferences: Object.values(fileMap).reduce((sum, refs) => sum + refs.length, 0),
+                    totalFiles: Object.keys(fileMap).length
                 }
             };
 
-            // Write to file with error handling for large data
+            // Write to file
             progress?.report({ message: 'Writing JSON file to disk...' });
             const outputPath = path.join(vscodePath, 'table_refs.json');
             
@@ -531,6 +457,9 @@ export class DatabaseAnalyzer {
                 
                 progress?.report({ message: `Saved ${fileSizeMB.toFixed(1)} MB JSON file successfully` });
                 console.log(`Analysis results saved to ${outputPath} (${fileSizeMB.toFixed(2)} MB)`);
+                console.log(`  - ${results.summary.totalReferences} references across ${results.summary.totalFiles} files`);
+                console.log(`  - ${results.summary.tablesWithReferences} tables with references`);
+                console.log(`  - Compact format: "line;column;tableName"`);
                 
                 if (fileSizeMB > 10) {
                     vscode.window.showWarningMessage(
@@ -538,20 +467,18 @@ export class DatabaseAnalyzer {
                     );
                 }
             } catch (stringifyError: any) {
-                // If JSON.stringify fails due to size, save a minimal version
-                console.error('JSON stringify failed, saving minimal results:', stringifyError);
+                console.error('JSON stringify failed:', stringifyError);
                 
-                const minimalResults = {
+                // Last resort: save just summary
+                fs.writeFileSync(outputPath, JSON.stringify({
                     timestamp: results.timestamp,
                     config: results.config,
                     summary: results.summary,
-                    note: 'Full results were too large to save. Showing summary only.'
-                };
-                
-                fs.writeFileSync(outputPath, JSON.stringify(minimalResults, null, 2), 'utf8');
+                    note: 'Full results were too large to save.'
+                }, null, 2), 'utf8');
                 
                 vscode.window.showWarningMessage(
-                    `Analysis results are too large to save (${results.summary.totalReferences} references). Saved summary only. Consider analyzing fewer tables.`
+                    'Results are extremely large. Saved summary only. Consider analyzing fewer tables or enabling relationship filtering.'
                 );
             }
         } catch (error) {
@@ -574,33 +501,149 @@ export class DatabaseAnalyzer {
             }
 
             const content = fs.readFileSync(outputPath, 'utf8');
-            const results: AnalysisResults = JSON.parse(content);
+            const results: CompactFileBasedResults = JSON.parse(content);
 
-            // Convert back to Map format
+            // Convert compact file-based format back to table-based Map
             const tableUsageMap = new Map<string, TableUsage>();
             
-            for (const table of results.tables) {
-                tableUsageMap.set(table.tableName, {
-                    tableName: table.tableName,
-                    references: table.references,
-                    files: new Set(table.files)
-                });
+            // Group references by table
+            for (const [filePath, compactRefs] of Object.entries(results.files)) {
+                for (const compactRef of compactRefs) {
+                    // Parse compact format: "line;column;tableName"
+                    const parts = compactRef.split(';');
+                    if (parts.length !== 3) {
+                        console.warn(`Invalid compact reference format: ${compactRef}`);
+                        continue;
+                    }
+
+                    const line = parseInt(parts[0], 10);
+                    const column = parseInt(parts[1], 10);
+                    const tableName = parts[2];
+
+                    // Get or create table entry
+                    if (!tableUsageMap.has(tableName)) {
+                        tableUsageMap.set(tableName, {
+                            tableName: tableName,
+                            references: [],
+                            files: new Set()
+                        });
+                    }
+
+                    const tableUsage = tableUsageMap.get(tableName)!;
+                    
+                    // Add reference (context is empty in compact format)
+                    tableUsage.references.push({
+                        tableName: tableName,
+                        filePath: filePath,
+                        line: line,
+                        column: column,
+                        context: '' // Not stored in compact format
+                    });
+                    
+                    // Add file to set
+                    tableUsage.files.add(filePath);
+                }
             }
 
-            // Restore relationships
+            // Recalculate relationships from loaded data
             this.relationships.clear();
-            for (const rel of results.relationships) {
-                const key = [rel.table1, rel.table2].sort().join('|');
-                this.relationships.set(key, {
-                    table1: rel.table1,
-                    table2: rel.table2,
-                    occurrences: rel.occurrences,
-                    files: new Set(rel.files),
-                    proximityInstances: rel.proximityInstances
-                });
+            console.log('Recalculating relationships from loaded data...');
+            
+            // Build file-to-tables map for efficient relationship detection
+            const fileTablesMap = new Map<string, Map<string, number[]>>();
+            
+            for (const [filePath, compactRefs] of Object.entries(results.files)) {
+                const tableLines = new Map<string, number[]>();
+                
+                for (const compactRef of compactRefs) {
+                    const parts = compactRef.split(';');
+                    if (parts.length !== 3) {continue;}
+                    
+                    const line = parseInt(parts[0], 10);
+                    const tableName = parts[2];
+                    
+                    if (!tableLines.has(tableName)) {
+                        tableLines.set(tableName, []);
+                    }
+                    tableLines.get(tableName)!.push(line);
+                }
+                
+                fileTablesMap.set(filePath, tableLines);
+            }
+            
+            // Detect relationships using proximity threshold
+            const proximityThreshold = this.getProximityThreshold();
+            const MAX_INSTANCES_PER_RELATIONSHIP = 100;
+            
+            for (const [filePath, tableLines] of fileTablesMap) {
+                const tables = Array.from(tableLines.keys());
+                
+                for (let i = 0; i < tables.length; i++) {
+                    for (let j = i + 1; j < tables.length; j++) {
+                        const table1 = tables[i];
+                        const table2 = tables[j];
+                        const lines1 = tableLines.get(table1)!;
+                        const lines2 = tableLines.get(table2)!;
+                        
+                        // Sort lines for efficient proximity check
+                        const sortedLines1 = lines1.sort((a, b) => a - b);
+                        const sortedLines2 = lines2.sort((a, b) => a - b);
+                        
+                        let proximityCount = 0;
+                        
+                        for (const line1 of sortedLines1) {
+                            const minLine = line1 - proximityThreshold;
+                            const maxLine = line1 + proximityThreshold;
+                            
+                            for (const line2 of sortedLines2) {
+                                if (line2 < minLine) {continue;}
+                                if (line2 > maxLine) {break;}
+                                
+                                const distance = Math.abs(line1 - line2);
+                                
+                                if (distance <= proximityThreshold && distance > 0) {
+                                    proximityCount++;
+                                    
+                                    const key = [table1, table2].sort().join('|');
+                                    
+                                    if (!this.relationships.has(key)) {
+                                        this.relationships.set(key, {
+                                            table1,
+                                            table2,
+                                            occurrences: 0,
+                                            files: new Set(),
+                                            proximityInstances: []
+                                        });
+                                    }
+                                    
+                                    const rel = this.relationships.get(key)!;
+                                    rel.occurrences++;
+                                    rel.files.add(filePath);
+                                    
+                                    if (rel.proximityInstances.length < MAX_INSTANCES_PER_RELATIONSHIP) {
+                                        rel.proximityInstances.push({
+                                            file: filePath,
+                                            line1,
+                                            line2,
+                                            distance
+                                        });
+                                    }
+                                }
+                            }
+                            
+                            if (proximityCount >= MAX_INSTANCES_PER_RELATIONSHIP) {
+                                break;
+                            }
+                        }
+                    }
+                }
             }
 
-            console.log(`Loaded analysis results from ${outputPath} (analyzed at ${results.timestamp})`);
+            console.log(`Loaded compact analysis results from ${outputPath} (analyzed at ${results.timestamp})`);
+            console.log(`  - ${results.summary.totalReferences} references across ${results.summary.totalFiles} files`);
+            console.log(`  - ${results.summary.tablesWithReferences} tables with references`);
+            console.log(`  - ${this.relationships.size} relationships recalculated`);
+            console.log(`  - Compact format: "line;column;tableName"`);
             this.lastAnalysisTimestamp = results.timestamp;
             return tableUsageMap;
         } catch (error) {

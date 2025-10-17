@@ -55,6 +55,16 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "acacia-db.filterTables",
+        "title": "Filter Tables",
+        "icon": "$(search)"
+      },
+      {
+        "command": "acacia-db.clearFilter",
+        "title": "Clear Filter",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "acacia-db.findTableReferences",
         "title": "Find Table References",
         "icon": "$(search)"
@@ -112,6 +122,16 @@
           "group": "navigation"
         },
         {
+          "command": "acacia-db.filterTables",
+          "when": "view == acaciaDbExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "acacia-db.clearFilter",
+          "when": "view == acaciaDbExplorer",
+          "group": "navigation"
+        },
+        {
           "command": "acacia-db.refreshExplorer",
           "when": "view == acaciaDbExplorer",
           "group": "navigation"
@@ -145,6 +165,19 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "acacia-db.filterTables",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "focusedView == acaciaDbExplorer"
+      },
+      {
+        "command": "acacia-db.clearFilter",
+        "key": "escape",
+        "when": "focusedView == acaciaDbExplorer"
+      }
+    ],
     "configuration": {
       "title": "Acacia DB",
       "properties": {
