@@ -10,6 +10,9 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
     private analyzer: DatabaseAnalyzer;
     private lastAnalysisTimestamp?: string;
     private filterText: string = '';
+    
+    // Lazy loading cache: file -> references with context
+    private fileContextCache: Map<string, Map<number, string>> = new Map();
 
     constructor(analyzer: DatabaseAnalyzer) {
         this.analyzer = analyzer;
@@ -47,12 +50,107 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
 
     refresh(): void {
         this._onDidChangeTreeData.fire();
+        // Clear context cache on refresh to ensure fresh data
+        this.fileContextCache.clear();
     }
 
     async analyze(): Promise<void> {
         this.tableUsageMap = await this.analyzer.analyzeWorkspace();
         this.lastAnalysisTimestamp = this.analyzer.getLastAnalysisTimestamp();
         this.refresh();
+    }
+
+    /**
+     * LAZY LOADING: Load file contexts on demand when file node is expanded.
+     * Uses memory-efficient line reading to avoid loading entire file.
+     */
+    private async loadFileContexts(filePath: string, references: any[]): Promise<void> {
+        try {
+            const lineCache = new Map<number, string>();
+            
+            // Extract unique line numbers that need contexts
+            const lines = new Set<number>();
+            for (const ref of references) {
+                if (!ref.context || ref.context === '') {
+                    lines.add(ref.line);
+                }
+            }
+            
+            // Load contexts using analyzer's memory-efficient method
+            // This reads only specific lines, not the entire file
+            for (const lineNum of lines) {
+                const context = await this.readLineFromFile(filePath, lineNum);
+                lineCache.set(lineNum, context);
+            }
+            
+            // Cache for future use
+            this.fileContextCache.set(filePath, lineCache);
+        } catch (error) {
+            console.error(`Error loading contexts for ${filePath}:`, error);
+        }
+    }
+
+    /**
+     * Memory-efficient line reader (delegates to analyzer or uses own implementation).
+     * Reads only specific lines without loading entire file into memory.
+     */
+    private async readLineFromFile(filePath: string, lineNumber: number): Promise<string> {
+        // Use Node.js fs to read specific line efficiently
+        const fs = require('fs');
+        try {
+            const fd = fs.openSync(filePath, 'r');
+            const bufferSize = 64 * 1024; // 64KB chunks
+            const buffer = Buffer.alloc(bufferSize);
+            
+            let currentLine = 1;
+            let currentLineContent = '';
+            let bytesRead = 0;
+            let position = 0;
+            
+            while (true) {
+                bytesRead = fs.readSync(fd, buffer, 0, bufferSize, position);
+                if (bytesRead === 0) {
+                    break;
+                }
+                
+                const chunk = buffer.toString('utf8', 0, bytesRead);
+                
+                for (let i = 0; i < chunk.length; i++) {
+                    const char = chunk[i];
+                    
+                    if (char === '\n') {
+                        if (currentLine === lineNumber) {
+                            fs.closeSync(fd);
+                            const trimmed = currentLineContent.trim();
+                            return trimmed.length > 200 ? trimmed.substring(0, 200) + '...' : trimmed;
+                        }
+                        currentLine++;
+                        currentLineContent = '';
+                    } else if (char !== '\r') {
+                        if (currentLine === lineNumber) {
+                            currentLineContent += char;
+                        }
+                    }
+                }
+                
+                position += bytesRead;
+                
+                if (currentLine > lineNumber) {
+                    break;
+                }
+            }
+            
+            fs.closeSync(fd);
+            
+            if (currentLine === lineNumber && currentLineContent) {
+                const trimmed = currentLineContent.trim();
+                return trimmed.length > 200 ? trimmed.substring(0, 200) + '...' : trimmed;
+            }
+            
+            return '';
+        } catch (err) {
+            return '';
+        }
     }
 
     getTreeItem(element: TreeItem): vscode.TreeItem {
@@ -151,13 +249,16 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
             
             // Get relationships for this table
             const relationships = this.analyzer.getRelationships();
-            const linkedTables = new Map<string, { occurrences: number; files: Set<string> }>();
+            const linkedTables = new Map<string, { occurrences: number; fileCount: number }>();
             
             for (const [key, rel] of relationships) {
-                if (rel.table1 === tableName) {
-                    linkedTables.set(rel.table2, { occurrences: rel.occurrences, files: rel.files });
-                } else if (rel.table2 === tableName) {
-                    linkedTables.set(rel.table1, { occurrences: rel.occurrences, files: rel.files });
+                const table1Name = this.analyzer.getTableName(rel.table1Id);
+                const table2Name = this.analyzer.getTableName(rel.table2Id);
+                
+                if (table1Name === tableName) {
+                    linkedTables.set(table2Name, { occurrences: rel.occurrences, fileCount: rel.fileCount });
+                } else if (table2Name === tableName) {
+                    linkedTables.set(table1Name, { occurrences: rel.occurrences, fileCount: rel.fileCount });
                 }
             }
             
@@ -217,13 +318,16 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
             const items: TreeItem[] = [];
             const tableName = element.tableUsage.tableName;
             const relationships = this.analyzer.getRelationships();
-            const linkedTables = new Map<string, { occurrences: number; files: Set<string> }>();
+            const linkedTables = new Map<string, { occurrences: number; fileCount: number }>();
             
             for (const [key, rel] of relationships) {
-                if (rel.table1 === tableName) {
-                    linkedTables.set(rel.table2, { occurrences: rel.occurrences, files: rel.files });
-                } else if (rel.table2 === tableName) {
-                    linkedTables.set(rel.table1, { occurrences: rel.occurrences, files: rel.files });
+                const table1Name = this.analyzer.getTableName(rel.table1Id);
+                const table2Name = this.analyzer.getTableName(rel.table2Id);
+                
+                if (table1Name === tableName) {
+                    linkedTables.set(table2Name, { occurrences: rel.occurrences, fileCount: rel.fileCount });
+                } else if (table2Name === tableName) {
+                    linkedTables.set(table1Name, { occurrences: rel.occurrences, fileCount: rel.fileCount });
                 }
             }
             
@@ -247,8 +351,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
                     undefined,
                     linkedTableName
                 );
-                item.description = `${data.occurrences} relationships in ${data.files.size} files`;
-                item.tooltip = `${linkedTableName} appears near ${tableName} in ${data.files.size} files`;
+                item.description = `${data.occurrences} relationships in ${data.fileCount} files`;
+                item.tooltip = `${linkedTableName} appears near ${tableName} in ${data.fileCount} files`;
                 item.iconPath = new vscode.ThemeIcon('link');
                 item.contextValue = 'linkedTable';
                 items.push(item);
@@ -265,8 +369,11 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
             // Find the relationship
             let relationship: any = null;
             for (const [key, rel] of relationships) {
-                if ((rel.table1 === table1 && rel.table2 === table2) || 
-                    (rel.table1 === table2 && rel.table2 === table1)) {
+                const table1Name = this.analyzer.getTableName(rel.table1Id);
+                const table2Name = this.analyzer.getTableName(rel.table2Id);
+                
+                if ((table1Name === table1 && table2Name === table2) || 
+                    (table1Name === table2 && table2Name === table1)) {
                     relationship = rel;
                     break;
                 }
@@ -276,10 +383,11 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
                 // Group instances by file
                 const fileInstances = new Map<string, typeof relationship.proximityInstances>();
                 for (const instance of relationship.proximityInstances) {
-                    if (!fileInstances.has(instance.file)) {
-                        fileInstances.set(instance.file, []);
+                    const fileName = this.analyzer.getFileName(instance.fileId);
+                    if (!fileInstances.has(fileName)) {
+                        fileInstances.set(fileName, []);
                     }
-                    fileInstances.get(instance.file)!.push(instance);
+                    fileInstances.get(fileName)!.push(instance);
                 }
                 
                 // Sort files by instance count (descending), then alphabetically
@@ -354,6 +462,9 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
             const table2 = element.linkedTableName;
             const instance = element.reference;
             
+            // Convert fileId to actual file path
+            const filePath = this.analyzer.getFileName(instance.fileId);
+            
             // First table reference
             const item1 = new TreeItem(
                 `${table1}: Line ${instance.line1}`,
@@ -361,14 +472,14 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
                 'relationshipLine',
                 undefined,
                 undefined,
-                { filePath: instance.file, line: instance.line1, tableName: table1 }
+                { filePath: filePath, line: instance.line1, tableName: table1 }
             );
             item1.iconPath = new vscode.ThemeIcon('symbol-field');
             item1.contextValue = 'relationshipLine';
             item1.command = {
                 command: 'acacia-db.openReference',
                 title: 'Open Reference',
-                arguments: [{ filePath: instance.file, line: instance.line1, column: 1 }]
+                arguments: [{ filePath: filePath, line: instance.line1, column: 1 }]
             };
             items.push(item1);
             
@@ -379,22 +490,36 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
                 'relationshipLine',
                 undefined,
                 undefined,
-                { filePath: instance.file, line: instance.line2, tableName: table2 }
+                { filePath: filePath, line: instance.line2, tableName: table2 }
             );
             item2.iconPath = new vscode.ThemeIcon('symbol-field');
             item2.contextValue = 'relationshipLine';
             item2.command = {
                 command: 'acacia-db.openReference',
                 title: 'Open Reference',
-                arguments: [{ filePath: instance.file, line: instance.line2, column: 1 }]
+                arguments: [{ filePath: filePath, line: instance.line2, column: 1 }]
             };
             items.push(item2);
             
             return items;
         } else if (element.type === 'file' && element.references) {
-            // Show individual references sorted by line number
+            // LAZY LOADING: Load contexts on demand when file node is expanded
             const sortedRefs = [...element.references].sort((a, b) => a.line - b.line);
+            
+            // Batch load contexts for this file if not cached
+            const filePath = sortedRefs[0]?.filePath;
+            if (filePath && !this.fileContextCache.has(filePath)) {
+                await this.loadFileContexts(filePath, sortedRefs);
+            }
+            
             return sortedRefs.map(ref => {
+                // Get context from cache (already loaded above)
+                let context = ref.context || '';
+                if (!context && filePath) {
+                    const fileCache = this.fileContextCache.get(filePath);
+                    context = fileCache?.get(ref.line) || '';
+                }
+                
                 const item = new TreeItem(
                     `Line ${ref.line}`,
                     vscode.TreeItemCollapsibleState.None,
@@ -403,8 +528,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
                     undefined,
                     ref
                 );
-                item.description = ref.context.substring(0, 50);
-                item.tooltip = ref.context;
+                item.description = context.substring(0, 50);
+                item.tooltip = context || `Line ${ref.line}, Column ${ref.column}`;
                 item.iconPath = new vscode.ThemeIcon('symbol-method');
                 item.contextValue = 'reference';
                 item.command = {

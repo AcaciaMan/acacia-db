@@ -130,13 +130,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// Command: Analyze Workspace
 	const analyzeWorkspace = vscode.commands.registerCommand('acacia-db.analyzeWorkspace', async () => {
 		try {
-			const config = configProvider.getConfig();
-			
-			// Set the analyzer configuration if specified
-			if (config.sourceFolder || config.tablesViewsFile) {
-				analyzer.setConfig(config);
-			}
-
+			// Configuration is read directly from settings by the analyzer
 			await treeDataProvider.analyze();
 			const tableUsageMap = treeDataProvider.getTableUsageMap();
 			
