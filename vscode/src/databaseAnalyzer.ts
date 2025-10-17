@@ -265,10 +265,14 @@ export class DatabaseAnalyzer {
                 fs.mkdirSync(vscodePath, { recursive: true });
             }
 
+            // Limits to prevent JSON from becoming too large
+            const MAX_REFERENCES_PER_TABLE = 1000;  // Limit references per table
+            const MAX_CONTEXT_LENGTH = 200;         // Truncate long context strings
+
             // Convert tableUsageMap to serializable format
             const tables: SerializableTableUsage[] = Array.from(tableUsageMap.values()).map(usage => {
                 // Sort references by file path (ascending), then by line number (ascending)
-                const sortedReferences = [...usage.references].sort((a, b) => {
+                let sortedReferences = [...usage.references].sort((a, b) => {
                     const pathCompare = a.filePath.localeCompare(b.filePath);
                     if (pathCompare !== 0) {
                         return pathCompare;
@@ -276,9 +280,23 @@ export class DatabaseAnalyzer {
                     return a.line - b.line;
                 });
 
+                // Limit number of references to prevent excessive file size
+                if (sortedReferences.length > MAX_REFERENCES_PER_TABLE) {
+                    console.warn(`Table ${usage.tableName} has ${sortedReferences.length} references, truncating to ${MAX_REFERENCES_PER_TABLE}`);
+                    sortedReferences = sortedReferences.slice(0, MAX_REFERENCES_PER_TABLE);
+                }
+
+                // Truncate long context strings
+                const referencesWithTruncatedContext = sortedReferences.map(ref => ({
+                    ...ref,
+                    context: ref.context.length > MAX_CONTEXT_LENGTH 
+                        ? ref.context.substring(0, MAX_CONTEXT_LENGTH) + '...'
+                        : ref.context
+                }));
+
                 return {
                     tableName: usage.tableName,
-                    references: sortedReferences,
+                    references: referencesWithTruncatedContext,
                     files: Array.from(usage.files).sort()
                 };
             });
@@ -346,14 +364,42 @@ export class DatabaseAnalyzer {
                 }
             };
 
-            // Write to file
+            // Write to file with error handling for large data
             const outputPath = path.join(vscodePath, 'table_refs.json');
-            fs.writeFileSync(outputPath, JSON.stringify(results, null, 2), 'utf8');
             
-            console.log(`Analysis results saved to ${outputPath}`);
+            try {
+                const jsonString = JSON.stringify(results, null, 2);
+                const fileSizeMB = Buffer.byteLength(jsonString, 'utf8') / (1024 * 1024);
+                
+                fs.writeFileSync(outputPath, jsonString, 'utf8');
+                
+                console.log(`Analysis results saved to ${outputPath} (${fileSizeMB.toFixed(2)} MB)`);
+                
+                if (fileSizeMB > 10) {
+                    vscode.window.showWarningMessage(
+                        `Analysis results file is large (${fileSizeMB.toFixed(1)} MB). Consider reducing the number of tables analyzed.`
+                    );
+                }
+            } catch (stringifyError: any) {
+                // If JSON.stringify fails due to size, save a minimal version
+                console.error('JSON stringify failed, saving minimal results:', stringifyError);
+                
+                const minimalResults = {
+                    timestamp: results.timestamp,
+                    config: results.config,
+                    summary: results.summary,
+                    note: 'Full results were too large to save. Showing summary only.'
+                };
+                
+                fs.writeFileSync(outputPath, JSON.stringify(minimalResults, null, 2), 'utf8');
+                
+                vscode.window.showWarningMessage(
+                    `Analysis results are too large to save (${results.summary.totalReferences} references). Saved summary only. Consider analyzing fewer tables.`
+                );
+            }
         } catch (error) {
             console.error('Error saving analysis results:', error);
-            // Don't show error to user - this is a background operation
+            vscode.window.showErrorMessage(`Failed to save analysis results: ${error}`);
         }
     }
 
