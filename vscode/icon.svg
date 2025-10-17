@@ -1,0 +1,26 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="128" height="128" rx="16" fill="#2D5F3F"/>
+  
+  <!-- Database cylinder -->
+  <ellipse cx="64" cy="38" rx="32" ry="10" fill="#4A9D6F" stroke="#72C89A" stroke-width="2"/>
+  <path d="M32 38 L32 70 C32 75.5 42 82 64 82 C86 82 96 75.5 96 70 L96 38" fill="#4A9D6F" stroke="#72C89A" stroke-width="2"/>
+  <ellipse cx="64" cy="70" rx="32" ry="12" fill="#3B7F5C" stroke="#72C89A" stroke-width="2"/>
+  
+  <!-- Middle ring -->
+  <ellipse cx="64" cy="54" rx="32" ry="10" fill="none" stroke="#72C89A" stroke-width="2"/>
+  
+  <!-- Acacia leaves accent - simplified tree leaf pattern -->
+  <g opacity="0.6">
+    <circle cx="48" cy="90" r="6" fill="#8FD4A8"/>
+    <circle cx="58" cy="95" r="5" fill="#8FD4A8"/>
+    <circle cx="70" cy="95" r="5" fill="#8FD4A8"/>
+    <circle cx="80" cy="90" r="6" fill="#8FD4A8"/>
+    <path d="M64 95 L64 105" stroke="#8FD4A8" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Data dots on database -->
+  <circle cx="64" cy="38" r="3" fill="#E8F5E9"/>
+  <circle cx="64" cy="54" r="3" fill="#E8F5E9"/>
+  <circle cx="64" cy="70" r="3" fill="#E8F5E9"/>
+</svg>

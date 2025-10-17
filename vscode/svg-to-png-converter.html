@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG to PNG Converter</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2D5F3F;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .drop-zone {
+            border: 3px dashed #4A9D6F;
+            border-radius: 8px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: #f9f9f9;
+            margin-bottom: 20px;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            background-color: #e8f5e9;
+            border-color: #2D5F3F;
+        }
+        .drop-zone p {
+            margin: 10px 0;
+            color: #666;
+        }
+        .drop-zone .icon {
+            font-size: 48px;
+            color: #4A9D6F;
+        }
+        #fileInput {
+            display: none;
+        }
+        .preview-section {
+            display: none;
+            margin-top: 30px;
+        }
+        .preview-container {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .preview-box {
+            flex: 1;
+            min-width: 250px;
+        }
+        .preview-box h3 {
+            color: #2D5F3F;
+            margin-bottom: 10px;
+        }
+        .preview-box img, .preview-box canvas {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: repeating-conic-gradient(#e0e0e0 0% 25%, transparent 0% 50%) 50% / 20px 20px;
+        }
+        #canvas {
+            display: none;
+        }
+        button {
+            background-color: #4A9D6F;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #2D5F3F;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .info {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4A9D6F;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info strong {
+            color: #2D5F3F;
+        }
+        .size-options {
+            margin: 20px 0;
+        }
+        .size-options label {
+            display: inline-block;
+            margin-right: 20px;
+            color: #333;
+        }
+        .size-options input[type="radio"] {
+            margin-right: 5px;
+        }
+        .custom-size {
+            margin-top: 10px;
+        }
+        .custom-size input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SVG to PNG Converter</h1>
+        <p class="subtitle">Convert your icon.svg to icon.png for VS Code Marketplace</p>
+        
+        <div class="info">
+            <strong>Instructions:</strong> Click or drag-and-drop your <code>icon.svg</code> file here. 
+            The converter will create a 128x128 PNG file suitable for VS Code extension marketplace.
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+            <div class="icon">📁</div>
+            <p><strong>Click to select</strong> or drag and drop your SVG file here</p>
+            <p style="font-size: 12px; color: #999;">Supports .svg files</p>
+        </div>
+        
+        <input type="file" id="fileInput" accept=".svg,image/svg+xml">
+
+        <div class="preview-section" id="previewSection">
+            <div class="size-options">
+                <strong>Select size:</strong><br><br>
+                <label>
+                    <input type="radio" name="size" value="128" checked>
+                    128x128 (VS Code Marketplace - Recommended)
+                </label>
+                <label>
+                    <input type="radio" name="size" value="256">
+                    256x256 (High Resolution)
+                </label>
+                <label>
+                    <input type="radio" name="size" value="512">
+                    512x512 (Extra Large)
+                </label>
+                <label>
+                    <input type="radio" name="size" value="custom">
+                    Custom
+                </label>
+                <div class="custom-size" id="customSizeInput" style="display: none;">
+                    <input type="number" id="customWidth" placeholder="Width" value="128"> x 
+                    <input type="number" id="customHeight" placeholder="Height" value="128"> px
+                </div>
+            </div>
+
+            <div class="preview-container">
+                <div class="preview-box">
+                    <h3>SVG Preview</h3>
+                    <img id="svgPreview" alt="SVG Preview">
+                </div>
+                <div class="preview-box">
+                    <h3>PNG Preview</h3>
+                    <canvas id="canvas"></canvas>
+                    <img id="pngPreview" alt="PNG Preview">
+                </div>
+            </div>
+
+            <button id="downloadBtn">💾 Download icon.png</button>
+            <button id="resetBtn">🔄 Convert Another File</button>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const previewSection = document.getElementById('previewSection');
+        const svgPreview = document.getElementById('svgPreview');
+        const pngPreview = document.getElementById('pngPreview');
+        const canvas = document.getElementById('canvas');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const sizeRadios = document.querySelectorAll('input[name="size"]');
+        const customSizeInput = document.getElementById('customSizeInput');
+        const customWidth = document.getElementById('customWidth');
+        const customHeight = document.getElementById('customHeight');
+
+        let currentSvgData = null;
+
+        // Handle size selection
+        sizeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.value === 'custom') {
+                    customSizeInput.style.display = 'block';
+                } else {
+                    customSizeInput.style.display = 'none';
+                }
+                if (currentSvgData) {
+                    convertSvgToPng(currentSvgData);
+                }
+            });
+        });
+
+        customWidth.addEventListener('change', () => {
+            if (currentSvgData) convertSvgToPng(currentSvgData);
+        });
+
+        customHeight.addEventListener('change', () => {
+            if (currentSvgData) convertSvgToPng(currentSvgData);
+        });
+
+        // Click to select file
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.includes('svg')) {
+                alert('Please select an SVG file');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentSvgData = e.target.result;
+                svgPreview.src = currentSvgData;
+                convertSvgToPng(currentSvgData);
+                previewSection.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function getSelectedSize() {
+            const selectedRadio = document.querySelector('input[name="size"]:checked');
+            if (selectedRadio.value === 'custom') {
+                return {
+                    width: parseInt(customWidth.value) || 128,
+                    height: parseInt(customHeight.value) || 128
+                };
+            } else {
+                const size = parseInt(selectedRadio.value);
+                return { width: size, height: size };
+            }
+        }
+
+        function convertSvgToPng(svgData) {
+            const { width, height } = getSelectedSize();
+            
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                // Fill with white background (optional)
+                // ctx.fillStyle = 'white';
+                // ctx.fillRect(0, 0, width, height);
+                
+                // Draw SVG
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convert to PNG
+                const pngDataUrl = canvas.toDataURL('image/png');
+                pngPreview.src = pngDataUrl;
+            };
+            img.src = svgData;
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'icon.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
+        resetBtn.addEventListener('click', () => {
+            previewSection.style.display = 'none';
+            fileInput.value = '';
+            currentSvgData = null;
+            svgPreview.src = '';
+            pngPreview.src = '';
+        });
+    </script>
+</body>
+</html>

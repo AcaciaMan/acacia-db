@@ -3,6 +3,13 @@
   "displayName": "Acacia DB",
   "description": "Analyzes database table and column usage across your source code. Find relationships, generate documentation, and optimize database access patterns. Perfect for legacy system analysis, migration planning, and performance optimization.",
   "version": "0.0.1",
+  "license": "MIT",
+  "publisher": "manacacia",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AcaciaMan/acacia-db"
+  },
   "engines": {
     "vscode": "^1.105.0"
   },
