@@ -106,6 +106,7 @@ export class DatabaseAnalyzer {
     private knownTables: Set<string> = new Set();
     private tableNames: string[] = [];
     private relationships: Map<string, TableRelationship> = new Map();
+    private lastAnalysisTimestamp?: string;
     
     constructor() {
     }
@@ -113,6 +114,10 @@ export class DatabaseAnalyzer {
     private getProximityThreshold(): number {
         const config = vscode.workspace.getConfiguration('acaciaDb');
         return config.get<number>('proximityThreshold', 50);
+    }
+
+    getLastAnalysisTimestamp(): string | undefined {
+        return this.lastAnalysisTimestamp;
     }
 
     setConfig(config: AnalysisConfig): void {
@@ -241,6 +246,7 @@ export class DatabaseAnalyzer {
         );
 
         // Save results to .vscode/table_refs.json
+        this.lastAnalysisTimestamp = new Date().toISOString();
         await this.saveResults(tableUsageMap);
 
         return tableUsageMap;
@@ -392,6 +398,7 @@ export class DatabaseAnalyzer {
             }
 
             console.log(`Loaded analysis results from ${outputPath} (analyzed at ${results.timestamp})`);
+            this.lastAnalysisTimestamp = results.timestamp;
             return tableUsageMap;
         } catch (error) {
             console.error('Error loading analysis results:', error);

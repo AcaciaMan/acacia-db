@@ -4,17 +4,26 @@
 
 ## Features
 
-- **� Activity Bar View**: Dedicated sidebar panel showing:
-  - Database analysis summary
-  - Hierarchical tree of tables, files, and references
+- **📊 Activity Bar View**: Dedicated sidebar panel showing:
+  - Database analysis summary with statistics
+  - Hierarchical tree of tables, linked tables (relationships), files, and references
+  - All data sorted by usage and importance
   - Quick navigation to any reference with one click
   - Inline actions for common tasks
-- **�🔍 Workspace Analysis**: Scan your entire workspace to find database table and column references across multiple file types (SQL, JavaScript, TypeScript, Java, C#, Python, PHP, Ruby, and more)
-- **� Database Usage Reports**: Generate comprehensive reports showing:
+- **🔍 Workspace Analysis**: Scan your entire workspace to find database table and column references across multiple file types (SQL, JavaScript, TypeScript, Java, C#, Python, PHP, Ruby, and more)
+- **🔗 Table Relationships**: Automatically detect tables that appear near each other in code (configurable proximity threshold)
+- **💾 Persistent Results**: Analysis results automatically saved to `.vscode/table_refs.json`:
+  - Complete reference data with file paths, line numbers, and context
+  - Table relationship information
+  - Summary statistics and metadata
+  - Sorted for consistency (most-referenced tables first)
+  - CI/CD integration ready (JSON format)
+- **📈 Database Usage Reports**: Generate comprehensive reports showing:
   - All tables found in your codebase
   - Number of references per table
   - Files containing database references
   - Exact locations with context
+  - Table relationships and coupling analysis
 - **🔎 Table Reference Search**: Quickly find all references to a specific table with an interactive picker to navigate to each location
 - **📝 Documentation Generation**: Automatically generate markdown documentation of your database usage
 - **⚙️ Customizable Patterns**: Configure file patterns and regex patterns to match your project's structure
@@ -83,10 +92,17 @@ Both formats help filter analysis to only known tables/views, reducing false pos
 ### Activity Bar
 
 1. **Click the Acacia DB icon** in the Activity Bar (left sidebar) to open the Database Explorer
-2. **Click the Refresh icon** in the view toolbar to analyze your workspace
-3. **Expand tables** to see files and individual references
-4. **Click any reference** to navigate directly to that line in your code
-5. **Right-click tables** for additional actions like copying the table name
+2. **View cached results** - Previously analyzed data loads automatically on startup
+3. **Click the Refresh icon** in the view toolbar to analyze your workspace
+4. **Expand tables** to see:
+   - **Linked Tables** - Tables that appear near this table (if relationships detected)
+   - **Referenced Files** - Files containing references to this table
+5. **Expand files** to see individual references with line numbers
+6. **Click any reference** to navigate directly to that line in your code
+7. **Right-click tables** for additional actions like copying the table name
+8. **Hover over summary** to see when the analysis was performed
+
+**Note**: Results are automatically saved to `.vscode/table_refs.json` and loaded on startup for instant access!
 
 ### Commands
 
@@ -235,13 +251,19 @@ Generate up-to-date documentation of database usage for new team members or exte
 
 Initial release of Acacia DB:
 - Configuration view for setting tables_views.json and source folder
-- Activity Bar view with hierarchical tree display
-- Workspace-wide database usage analysis
-- Filtered analysis based on known tables/views
+- Activity Bar view with hierarchical tree display (sorted by reference count)
+- Workspace-wide database usage analysis using ripgrep
+- Filtered analysis based on known tables/views from schema file
+- Table relationship detection (configurable proximity threshold)
+- Persistent analysis results in `.vscode/table_refs.json`:
+  - Complete reference data with metadata
+  - Sorted results (most-referenced tables first)
+  - CI/CD integration ready
+  - Programmatic access for custom tools
 - Table reference search with quick navigation
-- Documentation generation
-- Customizable scan patterns
-- HTML and Markdown reports
+- Documentation generation (Markdown and HTML)
+- Customizable scan patterns and regex patterns
+- Performance optimizations for large codebases
 - Inline actions for common tasks
 
 ## Contributing

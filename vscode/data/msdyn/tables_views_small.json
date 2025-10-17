@@ -1,0 +1,258 @@
+{
+  "tables": [
+    {
+      "name": "VAT",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": [
+        "VAT Prod. Posting Group",
+        "VAT %",
+        "Sales VAT Account",
+        "Purchase VAT Account",
+        "Reverse Chrg. VAT Acc.",
+        "VAT Prod. Posting Grp Desc.",
+        "VAT Clause Desc",
+        "Selected",
+        "Application Type",
+        "Default"
+      ],
+      "metadata": {
+        "table_id": 1877,
+        "field_count": 10,
+        "source_file": "VATSetupPostingGroups.Table.al",
+        "fields_detail": [
+          {
+            "id": 2,
+            "name": "VAT Prod. Posting Group",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 4,
+            "name": "VAT %",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 7,
+            "name": "Sales VAT Account",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 9,
+            "name": "Purchase VAT Account",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 11,
+            "name": "Reverse Chrg. VAT Acc.",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 18,
+            "name": "VAT Prod. Posting Grp Desc.",
+            "data_type": "Text[100]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 19,
+            "name": "VAT Clause Desc",
+            "data_type": "Text[250]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 22,
+            "name": "Selected",
+            "data_type": "Boolean",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 23,
+            "name": "Application Type",
+            "data_type": "Option",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 24,
+            "name": "Default",
+            "data_type": "Boolean",
+            "length": null,
+            "caption": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "AL",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": [
+        "Object Type",
+        "Object ID",
+        "Line No.",
+        "Test Codeunit ID",
+        "Test Method"
+      ],
+      "metadata": {
+        "table_id": 130472,
+        "field_count": 5,
+        "source_file": "ALCodeCoverageMap.Table.al",
+        "fields_detail": [
+          {
+            "id": 1,
+            "name": "Object Type",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 2,
+            "name": "Object ID",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 3,
+            "name": "Line No.",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 10,
+            "name": "Test Codeunit ID",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 11,
+            "name": "Test Method",
+            "data_type": "Text[250]",
+            "length": null,
+            "caption": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "Test",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": [
+        "PK",
+        "Description"
+      ],
+      "metadata": {
+        "table_id": 139173,
+        "field_count": 2,
+        "source_file": "TestTablewithlargefield.Table.al",
+        "fields_detail": [
+          {
+            "id": 1,
+            "name": "PK",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 2,
+            "name": "Description",
+            "data_type": "Text[2048]",
+            "length": null,
+            "caption": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "BCPT",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": [
+        "Parameter Name",
+        "Parameter Value"
+      ],
+      "metadata": {
+        "table_id": 149003,
+        "field_count": 2,
+        "source_file": "BCPTParameterLine.Table.al",
+        "fields_detail": [
+          {
+            "id": 1,
+            "name": "Parameter Name",
+            "data_type": "Text[50]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 2,
+            "name": "Parameter Value",
+            "data_type": "Text[250]",
+            "length": null,
+            "caption": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "Record",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": [
+        "Table No.",
+        "Node ID",
+        "Value",
+        "Parent Node ID"
+      ],
+      "metadata": {
+        "table_id": 8401,
+        "field_count": 4,
+        "source_file": "RecordSetTree.Table.al",
+        "fields_detail": [
+          {
+            "id": 1,
+            "name": "Table No.",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 3,
+            "name": "Node ID",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 10,
+            "name": "Value",
+            "data_type": "RecordID",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 11,
+            "name": "Parent Node ID",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          }
+        ]
+      }
+    }
+  ]
+}
