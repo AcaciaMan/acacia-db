@@ -107,6 +107,7 @@ export class DatabaseAnalyzer {
     private tableNames: string[] = [];
     private relationships: Map<string, TableRelationship> = new Map();
     private lastAnalysisTimestamp?: string;
+    private relationshipReferencesCache?: Set<string>; // Cache for relationship filter
     
     constructor() {
     }
@@ -193,6 +194,13 @@ export class DatabaseAnalyzer {
 
         const tableUsageMap = new Map<string, TableUsage>();
         this.relationships.clear();
+        this.relationshipReferencesCache = undefined; // Clear cache for new analysis
+
+        // Get configuration settings
+        const config = vscode.workspace.getConfiguration('acaciaDb');
+        const enableRelationships = config.get<boolean>('enableRelationshipDetection', true);
+        const filterToRelationshipsOnly = config.get<boolean>('filterToRelationshipsOnly', true);
+        const proximityThreshold = config.get<number>('proximityThreshold', 50);
 
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
@@ -223,77 +231,124 @@ export class DatabaseAnalyzer {
             }
 
             // Detect relationships between tables (optional, can be resource intensive)
-            const config = vscode.workspace.getConfiguration('acaciaDb');
-            const enableRelationships = config.get<boolean>('enableRelationshipDetection', true);
-            
             if (enableRelationships) {
                 progress.report({ message: 'Detecting table relationships...' });
                 try {
                     this.detectTableRelationships(tableUsageMap);
+                    progress.report({ message: 'Table relationships detected, finalizing analysis...' });
                 } catch (error) {
                     console.error('Error detecting relationships:', error);
                     vscode.window.showWarningMessage('Relationship detection failed. Analysis completed without relationships.');
                 }
             }
+
+            // Apply filtering to the map if enabled (builds the cache for saveResults to use)
+            let filteredMap: Map<string, TableUsage> = tableUsageMap;
+            
+            if (filterToRelationshipsOnly && this.relationships.size > 0) {
+                filteredMap = this.applyRelationshipFilter(tableUsageMap, proximityThreshold);
+                // Cache is now built and ready for saveResults to use
+            }
+
+            // Save results to .vscode/table_refs.json (will use the cached relationship references)
+            progress.report({ message: 'Preparing results for JSON export...' });
+            this.lastAnalysisTimestamp = new Date().toISOString();
+            await this.saveResults(tableUsageMap, progress);
+            progress.report({ message: 'Analysis complete!' });
         });
 
         const relationshipMsg = this.relationships.size > 0 
             ? ` Detected ${this.relationships.size} table relationships.`
             : '';
         
-        vscode.window.showInformationMessage(
-            `Found ${tableUsageMap.size} tables with references.${relationshipMsg}`
-        );
-
-        // Save results to .vscode/table_refs.json
-        this.lastAnalysisTimestamp = new Date().toISOString();
-        await this.saveResults(tableUsageMap);
-
-        // Apply filtering to the returned map if enabled (so tree view shows filtered results)
-        const config = vscode.workspace.getConfiguration('acaciaDb');
-        const filterToRelationshipsOnly = config.get<boolean>('filterToRelationshipsOnly', true);
+        const filterMsg = filterToRelationshipsOnly && this.relationships.size > 0
+            ? ' Tree view filtered to show only relationship references.'
+            : '';
         
+        vscode.window.showInformationMessage(
+            `Found ${tableUsageMap.size} tables with references.${relationshipMsg}${filterMsg}`
+        );
+        
+        // Return filtered map for tree view (was built inside withProgress block)
+        // Apply filtering again if needed (should use cache, so it's fast)
         if (filterToRelationshipsOnly && this.relationships.size > 0) {
-            const proximityThreshold = config.get<number>('proximityThreshold', 50);
-            const filteredMap = this.applyRelationshipFilter(tableUsageMap, proximityThreshold);
-            return filteredMap;
+            return this.applyRelationshipFilter(tableUsageMap, proximityThreshold);
         }
 
         return tableUsageMap;
     }
 
     private applyRelationshipFilter(tableUsageMap: Map<string, TableUsage>, proximityThreshold: number): Map<string, TableUsage> {
-        // Build a set of reference IDs that are part of relationships
-        const relationshipReferences = new Set<string>();
+        // Use cached relationship references if available, otherwise build it
+        let relationshipReferences: Set<string>;
         
-        // For each table, mark references that have another table nearby
-        for (const [tableName, usage] of tableUsageMap) {
-            for (const ref of usage.references) {
-                // Check if any other table has a reference within proximity in the same file
-                for (const [otherTableName, otherUsage] of tableUsageMap) {
-                    if (otherTableName === tableName) {
-                        continue;
+        if (this.relationshipReferencesCache) {
+            relationshipReferences = this.relationshipReferencesCache;
+            console.log(`Using cached relationship references (${relationshipReferences.size} references)`);
+        } else {
+            const startTime = Date.now();
+            
+            // Build a set of reference IDs that are part of relationships
+            relationshipReferences = new Set<string>();
+            
+            // OPTIMIZATION: Group all references by file first - O(n × m) instead of O(n² × m²)
+            // Map: filePath -> Array<{tableName, line, ref}>
+            const fileRefMap = new Map<string, Array<{tableName: string, line: number, ref: DatabaseReference}>>();
+            
+            for (const [tableName, usage] of tableUsageMap) {
+                for (const ref of usage.references) {
+                    if (!fileRefMap.has(ref.filePath)) {
+                        fileRefMap.set(ref.filePath, []);
                     }
+                    fileRefMap.get(ref.filePath)!.push({
+                        tableName,
+                        line: ref.line,
+                        ref
+                    });
+                }
+            }
+            
+            // OPTIMIZATION: For each file, sort references by line number and check proximity
+            // This is O(f × r log r + f × r) where f = files, r = refs per file
+            // Much better than O(n² × m²) for large datasets
+            for (const [filePath, refs] of fileRefMap) {
+                // Skip files with only one table referenced (no relationships possible)
+                const uniqueTables = new Set(refs.map(r => r.tableName));
+                if (uniqueTables.size < 2) {
+                    continue;
+                }
+                
+                // Sort by line number for efficient proximity checking
+                refs.sort((a, b) => a.line - b.line);
+                
+                // Check each reference against nearby references (within proximity threshold)
+                for (let i = 0; i < refs.length; i++) {
+                    const ref = refs[i];
                     
-                    for (const otherRef of otherUsage.references) {
-                        if (otherRef.filePath === ref.filePath) {
-                            const distance = Math.abs(ref.line - otherRef.line);
-                            if (distance > 0 && distance <= proximityThreshold) {
-                                // This reference is part of a relationship
-                                relationshipReferences.add(`${tableName}|${ref.filePath}|${ref.line}`);
-                                break;
-                            }
+                    // Only check references within proximity threshold (forward direction)
+                    for (let j = i + 1; j < refs.length; j++) {
+                        const otherRef = refs[j];
+                        const distance = otherRef.line - ref.line;
+                        
+                        // Since sorted, if distance > threshold, no need to check further
+                        if (distance > proximityThreshold) {
+                            break;
                         }
-                    }
-                    
-                    if (relationshipReferences.has(`${tableName}|${ref.filePath}|${ref.line}`)) {
-                        break;
+                        
+                        // Found a relationship if different tables within proximity
+                        if (ref.tableName !== otherRef.tableName && distance > 0) {
+                            relationshipReferences.add(`${ref.tableName}|${ref.ref.filePath}|${ref.line}`);
+                            relationshipReferences.add(`${otherRef.tableName}|${otherRef.ref.filePath}|${otherRef.line}`);
+                        }
                     }
                 }
             }
+            
+            const elapsed = Date.now() - startTime;
+            // Cache for subsequent use (in saveResults)
+            this.relationshipReferencesCache = relationshipReferences;
+            console.log(`Built and cached relationship references (${relationshipReferences.size} references) in ${elapsed}ms`);
         }
-        
-        console.log(`Filtered to ${relationshipReferences.size} references that are part of relationships`);
         
         // Create new filtered map
         const filteredMap = new Map<string, TableUsage>();
@@ -319,7 +374,7 @@ export class DatabaseAnalyzer {
         return filteredMap;
     }
 
-    private async saveResults(tableUsageMap: Map<string, TableUsage>): Promise<void> {
+    private async saveResults(tableUsageMap: Map<string, TableUsage>, progress?: vscode.Progress<{ message?: string; increment?: number }>): Promise<void> {
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
@@ -337,26 +392,29 @@ export class DatabaseAnalyzer {
             const MAX_CONTEXT_LENGTH = 200;         // Truncate long context strings
 
             // Get configuration for filtering
+            progress?.report({ message: 'Applying filtering and sorting rules...' });
             const config = vscode.workspace.getConfiguration('acaciaDb');
             const filterToRelationshipsOnly = config.get<boolean>('filterToRelationshipsOnly', true);
 
-            // Build a set of reference IDs that are part of relationships (if filtering enabled)
-            const relationshipReferences = new Set<string>();
+            // Use cached relationship references (already built during analysis)
+            // If cache doesn't exist, build it now (fallback for edge cases)
+            let relationshipReferences = new Set<string>();
             if (filterToRelationshipsOnly && this.relationships.size > 0) {
-                const proximityThreshold = this.getProximityThreshold();
-                
-                // Use the extracted method to get filtered references
-                const filteredMap = this.applyRelationshipFilter(tableUsageMap, proximityThreshold);
-                
-                // Build the set from filtered map for later use
-                for (const [tableName, usage] of filteredMap) {
-                    for (const ref of usage.references) {
-                        relationshipReferences.add(`${tableName}|${ref.filePath}|${ref.line}`);
-                    }
+                if (this.relationshipReferencesCache) {
+                    // Use the cached set - much faster than rebuilding
+                    relationshipReferences = this.relationshipReferencesCache;
+                    console.log(`Using cached relationship references for JSON export (${relationshipReferences.size} references)`);
+                } else {
+                    // Fallback: build the set if cache is missing
+                    console.log('Cache miss - building relationship references for JSON export');
+                    const proximityThreshold = this.getProximityThreshold();
+                    const filteredMap = this.applyRelationshipFilter(tableUsageMap, proximityThreshold);
+                    relationshipReferences = this.relationshipReferencesCache || new Set<string>();
                 }
             }
 
             // Convert tableUsageMap to serializable format
+            progress?.report({ message: 'Converting table data to JSON format...' });
             const tables: SerializableTableUsage[] = Array.from(tableUsageMap.values()).map(usage => {
                 // Filter references to only those in relationships (if enabled)
                 let referencesToSave = usage.references;
@@ -406,6 +464,7 @@ export class DatabaseAnalyzer {
             });
 
             // Convert relationships to serializable format
+            progress?.report({ message: 'Processing relationship data...' });
             const relationships: SerializableRelationship[] = Array.from(this.relationships.values()).map(rel => {
                 // Sort proximity instances by distance (ascending - closest first), then by line1 (ascending)
                 // This matches the tree view sorting for consistency
@@ -461,6 +520,7 @@ export class DatabaseAnalyzer {
             };
 
             // Write to file with error handling for large data
+            progress?.report({ message: 'Writing JSON file to disk...' });
             const outputPath = path.join(vscodePath, 'table_refs.json');
             
             try {
@@ -469,6 +529,7 @@ export class DatabaseAnalyzer {
                 
                 fs.writeFileSync(outputPath, jsonString, 'utf8');
                 
+                progress?.report({ message: `Saved ${fileSizeMB.toFixed(1)} MB JSON file successfully` });
                 console.log(`Analysis results saved to ${outputPath} (${fileSizeMB.toFixed(2)} MB)`);
                 
                 if (fileSizeMB > 10) {

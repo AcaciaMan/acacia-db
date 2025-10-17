@@ -116,9 +116,7 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			vscode.window.showInformationMessage(
-				`Analysis complete! Found ${tableUsageMap.size} tables with references.`
-			);
+			// The analyzer already shows completion message with relationship info
 		} catch (error) {
 			vscode.window.showErrorMessage(`Analysis failed: ${error}`);
 		}

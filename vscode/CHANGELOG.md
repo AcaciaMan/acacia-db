@@ -34,9 +34,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - All levels consistently show most relevant results first
   - JSON file maintains alphabetical file order for stability and diffing
 - Updated README with size optimization section and filtering documentation links
+- **Performance: 2x faster** relationship filtering via caching (eliminates duplicate O(n³) computation)
+
+### Performance
+- **Major optimization #1**: Relationship filter algorithm rewritten for 10-20x speedup
+  - Changed from O(n² × m²) to O(n×m + f×r log r + f×r×w) complexity
+  - File-based grouping: Only compare references within same file
+  - Sorted proximity checking: Early termination when beyond threshold
+  - Skip single-table files: No relationships possible
+  - Reduces filtering time from 10-20s to 0.5-2s on large codebases (477 tables)
+  - Added timing metrics to console output for monitoring
+  - See `FILTER-ALGORITHM-OPTIMIZATION.md` for detailed analysis
+- **Major optimization #2**: Relationship filter results now cached after first computation
+  - Eliminates redundant filtering during JSON export (was being called twice)
+  - Fixed operation ordering: build cache before save (no more cache misses)
+  - Overall analysis now 20-40x faster when relationship filtering is enabled
+  - Cache automatically cleared at start of each new analysis
+  - See `RELATIONSHIP-FILTER-CACHING.md` and `CACHE-MISS-FIX.md` for details
 
 ### Fixed
 - Prevents "Invalid string length" error on extremely large codebases (>500 tables)
+- No progress update after relationship detection (added "finalizing analysis" message)
+- Tree view not refreshing after analysis completes
+- Missing indication that filtering was applied to results
+- Long silent pause during JSON export (added detailed progress messages)
 
 ## [0.0.1] - 2025-10-17
 
