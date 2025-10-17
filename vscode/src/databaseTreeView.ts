@@ -143,9 +143,15 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
                 fileGroups.get(ref.filePath)!.push(ref);
             }
 
-            // Sort file groups alphabetically
+            // Sort file groups by reference count (descending), then alphabetically
             const sortedFileGroups = Array.from(fileGroups.entries())
-                .sort((a, b) => a[0].localeCompare(b[0]));
+                .sort((a, b) => {
+                    const refDiff = b[1].length - a[1].length; // Most references first
+                    if (refDiff !== 0) {
+                        return refDiff;
+                    }
+                    return a[0].localeCompare(b[0]); // Alphabetically if equal
+                });
 
             for (const [filePath, refs] of sortedFileGroups) {
                 const fileName = path.basename(filePath);
@@ -235,9 +241,15 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
                     fileInstances.get(instance.file)!.push(instance);
                 }
                 
-                // Sort files alphabetically
+                // Sort files by instance count (descending), then alphabetically
                 const sortedFiles = Array.from(fileInstances.entries())
-                    .sort((a, b) => a[0].localeCompare(b[0]));
+                    .sort((a, b) => {
+                        const instDiff = b[1].length - a[1].length; // Most instances first
+                        if (instDiff !== 0) {
+                            return instDiff;
+                        }
+                        return a[0].localeCompare(b[0]); // Alphabetically if equal
+                    });
                 
                 for (const [filePath, instances] of sortedFiles) {
                     const fileName = path.basename(filePath);
@@ -266,8 +278,14 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
             const table1 = element.tableUsage.tableName;
             const table2 = element.linkedTableName;
             
-            // Sort instances by line1
-            const sortedInstances = [...element.references].sort((a: any, b: any) => a.line1 - b.line1);
+            // Sort instances by distance (ascending - closest first), then by line1 (ascending - earliest first)
+            const sortedInstances = [...element.references].sort((a: any, b: any) => {
+                const distDiff = a.distance - b.distance; // Closest proximity first
+                if (distDiff !== 0) {
+                    return distDiff;
+                }
+                return a.line1 - b.line1; // Earliest line if same distance
+            });
             
             for (const instance of sortedInstances) {
                 // Create a group item for this proximity instance

@@ -266,7 +266,11 @@ Filtering works **in addition to** existing limits:
    └─ 📄 database.js (7 refs)    ← Only relationship refs
 ```
 
-**Note**: Tree view only shows tables with references. Tables that have zero references after filtering are automatically hidden from the tree.
+**Note**: Tree view shows filtered results in real-time:
+- Tables with zero references after filtering are hidden
+- Only files containing relationship references are shown
+- Only line references that are part of relationships are displayed
+- Tree view matches exactly what's saved in the JSON file
 
 ## Monitoring
 

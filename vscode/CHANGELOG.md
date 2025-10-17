@@ -25,6 +25,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Analysis results now respect `filterToRelationshipsOnly` setting during save
+- Tree view now shows only filtered references (matches saved JSON file)
+- Tree view displays real-time filtered results immediately after analysis
+- **Enhanced sorting across all tree levels** for better relevance:
+  - Level 2 (Files): Now sorted by reference count (desc), then alphabetically (tree view only)
+  - Level 4 (Relationship Files): Now sorted by instance count (desc), then alphabetically (tree view only)
+  - Level 5 (Proximity Instances): Now sorted by distance (asc - closest first), then by line (both JSON and tree)
+  - All levels consistently show most relevant results first
+  - JSON file maintains alphabetical file order for stability and diffing
 - Updated README with size optimization section and filtering documentation links
 
 ### Fixed

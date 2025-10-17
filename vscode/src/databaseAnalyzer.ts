@@ -249,7 +249,74 @@ export class DatabaseAnalyzer {
         this.lastAnalysisTimestamp = new Date().toISOString();
         await this.saveResults(tableUsageMap);
 
+        // Apply filtering to the returned map if enabled (so tree view shows filtered results)
+        const config = vscode.workspace.getConfiguration('acaciaDb');
+        const filterToRelationshipsOnly = config.get<boolean>('filterToRelationshipsOnly', true);
+        
+        if (filterToRelationshipsOnly && this.relationships.size > 0) {
+            const proximityThreshold = config.get<number>('proximityThreshold', 50);
+            const filteredMap = this.applyRelationshipFilter(tableUsageMap, proximityThreshold);
+            return filteredMap;
+        }
+
         return tableUsageMap;
+    }
+
+    private applyRelationshipFilter(tableUsageMap: Map<string, TableUsage>, proximityThreshold: number): Map<string, TableUsage> {
+        // Build a set of reference IDs that are part of relationships
+        const relationshipReferences = new Set<string>();
+        
+        // For each table, mark references that have another table nearby
+        for (const [tableName, usage] of tableUsageMap) {
+            for (const ref of usage.references) {
+                // Check if any other table has a reference within proximity in the same file
+                for (const [otherTableName, otherUsage] of tableUsageMap) {
+                    if (otherTableName === tableName) {
+                        continue;
+                    }
+                    
+                    for (const otherRef of otherUsage.references) {
+                        if (otherRef.filePath === ref.filePath) {
+                            const distance = Math.abs(ref.line - otherRef.line);
+                            if (distance > 0 && distance <= proximityThreshold) {
+                                // This reference is part of a relationship
+                                relationshipReferences.add(`${tableName}|${ref.filePath}|${ref.line}`);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (relationshipReferences.has(`${tableName}|${ref.filePath}|${ref.line}`)) {
+                        break;
+                    }
+                }
+            }
+        }
+        
+        console.log(`Filtered to ${relationshipReferences.size} references that are part of relationships`);
+        
+        // Create new filtered map
+        const filteredMap = new Map<string, TableUsage>();
+        
+        for (const [tableName, usage] of tableUsageMap) {
+            const filteredReferences = usage.references.filter(ref => 
+                relationshipReferences.has(`${tableName}|${ref.filePath}|${ref.line}`)
+            );
+            
+            // Only include tables that have at least one filtered reference
+            if (filteredReferences.length > 0) {
+                const filteredFiles = new Set<string>();
+                filteredReferences.forEach(ref => filteredFiles.add(ref.filePath));
+                
+                filteredMap.set(tableName, {
+                    tableName,
+                    references: filteredReferences,
+                    files: filteredFiles
+                });
+            }
+        }
+        
+        return filteredMap;
     }
 
     private async saveResults(tableUsageMap: Map<string, TableUsage>): Promise<void> {
@@ -278,34 +345,15 @@ export class DatabaseAnalyzer {
             if (filterToRelationshipsOnly && this.relationships.size > 0) {
                 const proximityThreshold = this.getProximityThreshold();
                 
-                // For each table, mark references that have another table nearby
-                for (const [tableName, usage] of tableUsageMap) {
+                // Use the extracted method to get filtered references
+                const filteredMap = this.applyRelationshipFilter(tableUsageMap, proximityThreshold);
+                
+                // Build the set from filtered map for later use
+                for (const [tableName, usage] of filteredMap) {
                     for (const ref of usage.references) {
-                        // Check if any other table has a reference within proximity in the same file
-                        for (const [otherTableName, otherUsage] of tableUsageMap) {
-                            if (otherTableName === tableName) {
-                                continue;
-                            }
-                            
-                            for (const otherRef of otherUsage.references) {
-                                if (otherRef.filePath === ref.filePath) {
-                                    const distance = Math.abs(ref.line - otherRef.line);
-                                    if (distance > 0 && distance <= proximityThreshold) {
-                                        // This reference is part of a relationship
-                                        relationshipReferences.add(`${tableName}|${ref.filePath}|${ref.line}`);
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            if (relationshipReferences.has(`${tableName}|${ref.filePath}|${ref.line}`)) {
-                                break;
-                            }
-                        }
+                        relationshipReferences.add(`${tableName}|${ref.filePath}|${ref.line}`);
                     }
                 }
-                
-                console.log(`Filtered to ${relationshipReferences.size} references that are part of relationships`);
             }
 
             // Convert tableUsageMap to serializable format
@@ -359,13 +407,14 @@ export class DatabaseAnalyzer {
 
             // Convert relationships to serializable format
             const relationships: SerializableRelationship[] = Array.from(this.relationships.values()).map(rel => {
-                // Sort proximity instances by file (ascending), then by line1 (ascending)
+                // Sort proximity instances by distance (ascending - closest first), then by line1 (ascending)
+                // This matches the tree view sorting for consistency
                 const sortedInstances = [...rel.proximityInstances].sort((a, b) => {
-                    const fileCompare = a.file.localeCompare(b.file);
-                    if (fileCompare !== 0) {
-                        return fileCompare;
+                    const distDiff = a.distance - b.distance; // Closest proximity first
+                    if (distDiff !== 0) {
+                        return distDiff;
                     }
-                    return a.line1 - b.line1;
+                    return a.line1 - b.line1; // Earliest line if same distance
                 });
 
                 return {

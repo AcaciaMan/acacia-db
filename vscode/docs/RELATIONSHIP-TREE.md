@@ -84,7 +84,7 @@ The Database Explorer provides a deep, multi-level tree view for exploring table
 - **Label**: File name
 - **Description**: "X instances" (singular/plural)
 - **Tooltip**: Full file path
-- **Sorted**: Alphabetically by file path
+- **Sorted**: By instance count (desc), then alphabetically by file path
 - **Expandable**: Yes
 - **Click**: Expands to show proximity instances
 
@@ -93,9 +93,10 @@ The Database Explorer provides a deep, multi-level tree view for exploring table
 - **Label**: "TABLE1 ↔ TABLE2"
 - **Description**: "X lines apart"
 - **Tooltip**: "TABLE1 at line X, TABLE2 at line Y"
-- **Sorted**: By first line number (line1)
+- **Sorted**: By distance (asc - closest first), then by first line number (asc)
 - **Expandable**: Yes
 - **Click**: Expands to show both specific lines
+- **Note**: Closest relationships appear first (tightest coupling)
 
 ### Level 6: Relationship Line
 - **Icon**: 🔹 (symbol-field)
