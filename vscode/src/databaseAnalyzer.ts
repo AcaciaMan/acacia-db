@@ -6,21 +6,6 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// Ripgrep JSON output interface
-interface RipgrepMatch {
-    type: 'match' | 'begin' | 'end' | 'context' | 'summary';
-    data: {
-        path: { text: string };
-        lines: { text: string };
-        line_number: number;
-        submatches: Array<{
-            match: { text: string };
-            start: number;
-            end: number;
-        }>;
-    };
-}
-
 // Simple match structure: file -> line, column, table
 interface Match {
     file: string;
@@ -220,6 +205,14 @@ export class DatabaseAnalyzer {
                 const allMatches = await this.searchAllTables(sourceFolder, progress);
                 
                 console.log(`Found ${allMatches.length} total matches`);
+                
+                // Warn if no matches found
+                if (allMatches.length === 0) {
+                    console.warn('⚠️ No table references found!');
+                    console.warn(`   Tables file: ${tablesViewsFile}`);
+                    console.warn(`   Source folder: ${sourceFolder}`);
+                    console.warn(`   Make sure the source folder contains code that references these tables.`);
+                }
 
                 // Step 4: Sort matches by file, then by line
                 progress.report({ message: 'Sorting results...', increment: 10 });
@@ -349,52 +342,111 @@ export class DatabaseAnalyzer {
             const rgCommand = process.platform === 'win32' ? 'rg' : 'rg';
             const pattern = `\\b${this.escapeRegex(tableName)}\\b`;
             
-            // Add --max-count to limit matches per file and prevent buffer overflow
-            const command = `${rgCommand} -e "${pattern}" -i --json --max-count=500 "${sourceFolder}"`;
+            // Use --vimgrep format: outputs one line per match (even for multiple matches on same source line)
+            // Format: filepath:line:column:content
+            // --vimgrep implies --line-number --column --no-heading
+            // --max-count limits matches per file to prevent buffer overflow
+            const command = `${rgCommand} -e "${pattern}" -i --vimgrep --max-count=500 "${sourceFolder}"`;
             
-            const { stdout } = await execAsync(command, { 
-                maxBuffer: 500 * 1024 * 1024, // 500MB buffer
-                windowsHide: true 
-            });
+            // Debug: Log first table search to help troubleshoot configuration
+            if (tableName === this.tableNames[0]) {
+                console.log(`[DEBUG] Searching in: ${sourceFolder}`);
+                console.log(`[DEBUG] First table: "${tableName}"`);
+                console.log(`[DEBUG] Command: ${command}`);
+            }
+            
+            let stdout = '';
+            let hadError = false;
+            try {
+                const result = await execAsync(command, { 
+                    maxBuffer: 100 * 1024 * 1024, // 100MB buffer (much smaller since no JSON overhead)
+                    windowsHide: true 
+                });
+                stdout = result.stdout;
+            } catch (error: any) {
+                hadError = true;
+                // execAsync throws even when stdout has data, so capture it
+                if (error.stdout) {
+                    stdout = error.stdout;
+                }
+                
+                // Debug first table
+                if (tableName === this.tableNames[0]) {
+                    console.log(`[DEBUG] Error caught - code: ${error.code}, stdout length: ${stdout.length}, stderr: ${error.stderr?.substring(0, 100)}`);
+                }
+                
+                // Check for specific error types
+                if (error.message && error.message.includes('maxBuffer')) {
+                    console.error(`Table "${tableName}" has too many matches (exceeded buffer limit), skipping...`);
+                    return []; // Return empty to skip this table
+                }
+                
+                // Error code 1 usually means no matches, but we might have partial output
+                if (error.code !== 1 && !stdout) {
+                    console.error(`Ripgrep error for table ${tableName}:`, error.message);
+                    return [];
+                }
+            }
+            
+            // Debug first table
+            if (tableName === this.tableNames[0]) {
+                console.log(`[DEBUG] Had error: ${hadError}, stdout length: ${stdout.length}, lines: ${stdout.split('\n').filter(l => l.trim()).length}`);
+            }
+            
+            if (!stdout) {
+                return matches; // No output, return empty
+            }
             
             const lines = stdout.split('\n').filter(line => line.trim());
             
+            // Parse vimgrep format: filepath:line:column:content
+            // Each match gets its own line, even if multiple matches are on the same source line
+            // Note: On Windows, paths like "c:\path\file.txt" have a colon after drive letter!
             for (const line of lines) {
-                try {
-                    const result: RipgrepMatch = JSON.parse(line);
-                    
-                    if (result.type === 'match' && result.data) {
-                        const data = result.data;
-                        const filePath = path.resolve(data.path.text);
-                        const lineNumber = data.line_number;
-                        
-                        // Process all submatches (multiple occurrences on same line)
-                        if (data.submatches && data.submatches.length > 0) {
-                            for (const submatch of data.submatches) {
-                                matches.push({
-                                    file: filePath,
-                                    line: lineNumber,
-                                    column: submatch.start,
-                                    table: tableName
-                                });
-                            }
-                        }
-                    }
-                } catch (parseError) {
-                    // Skip invalid JSON lines
+                // Handle Windows absolute paths (e.g., "c:\...") vs Unix paths
+                let searchStart = 0;
+                
+                // On Windows, check if line starts with drive letter pattern (e.g., "c:\")
+                if (process.platform === 'win32' && line.length > 2 && line[1] === ':' && (line[2] === '\\' || line[2] === '/')) {
+                    // Skip the drive letter colon (e.g., "c:")
+                    searchStart = 2;
                 }
+                
+                // Find colons after the file path
+                const firstColon = line.indexOf(':', searchStart);
+                if (firstColon === -1) {
+                    continue;
+                }
+                
+                const secondColon = line.indexOf(':', firstColon + 1);
+                if (secondColon === -1) {
+                    continue;
+                }
+                
+                const thirdColon = line.indexOf(':', secondColon + 1);
+                if (thirdColon === -1) {
+                    continue;
+                }
+                
+                const filePath = path.resolve(line.substring(0, firstColon));
+                const lineNumber = parseInt(line.substring(firstColon + 1, secondColon), 10);
+                const columnNumber = parseInt(line.substring(secondColon + 1, thirdColon), 10);
+                
+                // Validate parsed values
+                if (isNaN(lineNumber) || isNaN(columnNumber)) {
+                    continue;
+                }
+                
+                matches.push({
+                    file: filePath,
+                    line: lineNumber,
+                    column: columnNumber,
+                    table: tableName
+                });
             }
         } catch (error: any) {
-            // Check for specific error types
-            if (error.message && error.message.includes('maxBuffer')) {
-                console.error(`Table "${tableName}" has too many matches (exceeded buffer limit), skipping...`);
-                return []; // Return empty to skip this table
-            }
-            
-            // Error code 1 means no matches found (not an error)
-            if (error.code !== 1) {
-                console.error(`Ripgrep error for table ${tableName}:`, error.message);
-            }
+            // Unexpected error
+            console.error(`Unexpected error searching for table ${tableName}:`, error.message);
         }
         
         return matches;
