@@ -53,11 +53,14 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
 
             const items: TreeItem[] = [];
             
-            // Summary item
-            const totalRefs = Array.from(this.tableUsageMap.values())
+            // Summary item - only count tables with references
+            const tablesWithRefs = Array.from(this.tableUsageMap.values())
+                .filter(usage => usage.references.length > 0);
+            
+            const totalRefs = tablesWithRefs
                 .reduce((sum, usage) => sum + usage.references.length, 0);
             
-            let summaryLabel = `${this.tableUsageMap.size} tables, ${totalRefs} references`;
+            let summaryLabel = `${tablesWithRefs.length} tables, ${totalRefs} references`;
             let tooltipText = summaryLabel;
             
             if (this.lastAnalysisTimestamp) {
@@ -75,8 +78,9 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<TreeIte
             summaryItem.tooltip = tooltipText;
             items.push(summaryItem);
 
-            // Table items
+            // Table items - only show tables with references
             const sortedTables = Array.from(this.tableUsageMap.entries())
+                .filter(([_, usage]) => usage.references.length > 0) // Filter out tables with no references
                 .sort((a, b) => {
                     const refDiff = b[1].references.length - a[1].references.length;
                     if (refDiff !== 0) {

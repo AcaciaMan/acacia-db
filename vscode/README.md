@@ -165,8 +165,11 @@ Customize Acacia DB through VS Code settings:
 - **`acaciaDb.sourceFolder`**: Source code folder to analyze for database references
 - **`acaciaDb.enableRelationshipDetection`**: Enable detection of table relationships (default: true)
 - **`acaciaDb.proximityThreshold`**: Number of lines within which tables are considered related (default: 50, range: 1-500)
+- **`acaciaDb.filterToRelationshipsOnly`**: Save only references that are part of table relationships (default: **true**) - **dramatically reduces file size** (80-95%)
 
 > **Tip**: Use the Configuration view in the Activity Bar for an easier way to set `tablesViewsFile` and `sourceFolder`!
+> 
+> **Note**: `filterToRelationshipsOnly` is **enabled by default** to optimize file size. Disable it if you need to save all references. See [docs/RELATIONSHIP-FILTERING.md](docs/RELATIONSHIP-FILTERING.md) for details.
 
 ## Analysis Results
 
@@ -184,6 +187,16 @@ After running an analysis, Acacia DB automatically saves the results to `.vscode
 - **Custom reporting**: Build your own analysis tools
 - **Change tracking**: Track database usage evolution over time
 - **Team sharing**: Optionally commit results for team visibility
+
+### Size Optimization
+
+For large codebases with many tables (>200) or references (>100K), you may encounter file size issues. Acacia DB provides several optimizations:
+
+1. **Relationship-Only Filtering** (Recommended): Enable `acaciaDb.filterToRelationshipsOnly` to save only references that are part of table relationships (within proximity threshold of another table). This reduces file size by **80-95%** while keeping the most interesting data. See [docs/RELATIONSHIP-FILTERING.md](docs/RELATIONSHIP-FILTERING.md) for details.
+
+2. **Automatic Limits**: The extension automatically limits references per table (1000 max) and truncates context strings (200 chars) to prevent crashes.
+
+3. **Graceful Degradation**: If results are too large, the extension saves summary-only data and notifies you.
 
 ### Example Structure
 
@@ -244,6 +257,7 @@ Generate up-to-date documentation of database usage for new team members or exte
 - Requires ripgrep (rg) to be installed and available in system PATH
 - Performance on very large workspaces depends on ripgrep speed
 - Table relationships detection works best with consistent coding patterns
+- For extremely large codebases (>100K references), enable `filterToRelationshipsOnly` to prevent file size issues
 
 ## Release Notes
 

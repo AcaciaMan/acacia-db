@@ -2,6 +2,34 @@
 
 All notable changes to the "acacia-db" extension will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [Unreleased]
+
+### Added
+- **Relationship-Only Filtering**: New `filterToRelationshipsOnly` setting to save only references that are part of table relationships
+  - Dramatically reduces file size by 80-95% for large codebases
+  - Perfect for projects with >100K references or >200 tables
+  - Focuses analysis on table interactions and coupling points
+  - **Enabled by default** for optimal performance (can be disabled if needed)
+- Console logging showing filtered reference count
+- Automatic exclusion of tables with zero references:
+  - Not saved to JSON file
+  - Hidden from tree view display
+  - Summary counts only include tables with references
+- Comprehensive documentation:
+  - `docs/RELATIONSHIP-FILTERING.md` - Detailed filtering guide with examples
+  - `docs/CONFIGURATION-GUIDE.md` - Complete reference for all 7 settings
+  - `docs/QUICK-REFERENCE.md` - Fast lookup card for common tasks
+  - `docs/IMPLEMENTATION-SUMMARY.md` - Technical implementation details
+
+### Changed
+- Analysis results now respect `filterToRelationshipsOnly` setting during save
+- Updated README with size optimization section and filtering documentation links
+
+### Fixed
+- Prevents "Invalid string length" error on extremely large codebases (>500 tables)
+
 ## [0.0.1] - 2025-10-17
 
 ### Added

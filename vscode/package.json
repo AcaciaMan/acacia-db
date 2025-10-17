@@ -203,6 +203,11 @@
           "minimum": 1,
           "maximum": 500,
           "description": "Number of lines within which tables are considered related"
+        },
+        "acaciaDb.filterToRelationshipsOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Save only references that are part of table relationships (within proximity threshold of another table). Dramatically reduces file size."
         }
       }
     }

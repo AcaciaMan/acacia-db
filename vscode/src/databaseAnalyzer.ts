@@ -269,10 +269,57 @@ export class DatabaseAnalyzer {
             const MAX_REFERENCES_PER_TABLE = 1000;  // Limit references per table
             const MAX_CONTEXT_LENGTH = 200;         // Truncate long context strings
 
+            // Get configuration for filtering
+            const config = vscode.workspace.getConfiguration('acaciaDb');
+            const filterToRelationshipsOnly = config.get<boolean>('filterToRelationshipsOnly', true);
+
+            // Build a set of reference IDs that are part of relationships (if filtering enabled)
+            const relationshipReferences = new Set<string>();
+            if (filterToRelationshipsOnly && this.relationships.size > 0) {
+                const proximityThreshold = this.getProximityThreshold();
+                
+                // For each table, mark references that have another table nearby
+                for (const [tableName, usage] of tableUsageMap) {
+                    for (const ref of usage.references) {
+                        // Check if any other table has a reference within proximity in the same file
+                        for (const [otherTableName, otherUsage] of tableUsageMap) {
+                            if (otherTableName === tableName) {
+                                continue;
+                            }
+                            
+                            for (const otherRef of otherUsage.references) {
+                                if (otherRef.filePath === ref.filePath) {
+                                    const distance = Math.abs(ref.line - otherRef.line);
+                                    if (distance > 0 && distance <= proximityThreshold) {
+                                        // This reference is part of a relationship
+                                        relationshipReferences.add(`${tableName}|${ref.filePath}|${ref.line}`);
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (relationshipReferences.has(`${tableName}|${ref.filePath}|${ref.line}`)) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                console.log(`Filtered to ${relationshipReferences.size} references that are part of relationships`);
+            }
+
             // Convert tableUsageMap to serializable format
             const tables: SerializableTableUsage[] = Array.from(tableUsageMap.values()).map(usage => {
+                // Filter references to only those in relationships (if enabled)
+                let referencesToSave = usage.references;
+                if (filterToRelationshipsOnly && relationshipReferences.size > 0) {
+                    referencesToSave = usage.references.filter(ref => 
+                        relationshipReferences.has(`${usage.tableName}|${ref.filePath}|${ref.line}`)
+                    );
+                }
+                
                 // Sort references by file path (ascending), then by line number (ascending)
-                let sortedReferences = [...usage.references].sort((a, b) => {
+                let sortedReferences = [...referencesToSave].sort((a, b) => {
                     const pathCompare = a.filePath.localeCompare(b.filePath);
                     if (pathCompare !== 0) {
                         return pathCompare;
@@ -299,7 +346,7 @@ export class DatabaseAnalyzer {
                     references: referencesWithTruncatedContext,
                     files: Array.from(usage.files).sort()
                 };
-            });
+            }).filter(table => table.references.length > 0);  // Skip tables with no references after filtering
 
             // Sort tables: first by reference count (descending), then by name (ascending)
             tables.sort((a, b) => {
