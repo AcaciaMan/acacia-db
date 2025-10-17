@@ -601,7 +601,8 @@ export class DatabaseAnalyzer {
                                 
                                 const distance = Math.abs(line1 - line2);
                                 
-                                if (distance <= proximityThreshold && distance > 0) {
+                                // Allow distance = 0 to detect tables on the same line
+                                if (distance <= proximityThreshold) {
                                     proximityCount++;
                                     
                                     const key = [table1, table2].sort().join('|');
@@ -687,20 +688,28 @@ export class DatabaseAnalyzer {
                         const lineNumber = data.line_number;
                         const lineText = data.lines.text.trim();
                         
-                        // Find the column position of the match
-                        // data.submatches contains the match positions
-                        let column = 0;
+                        // Process all submatches - multiple occurrences of the table on the same line
+                        // For example: "JOIN users ON orders.user_id = users.id" has 2 matches for "users"
                         if (data.submatches && data.submatches.length > 0) {
-                            column = data.submatches[0].start;
+                            for (const submatch of data.submatches) {
+                                references.push({
+                                    tableName,
+                                    filePath: path.resolve(filePath),
+                                    line: lineNumber,
+                                    column: submatch.start,
+                                    context: lineText
+                                });
+                            }
+                        } else {
+                            // Fallback: no submatch data (shouldn't happen with --json)
+                            references.push({
+                                tableName,
+                                filePath: path.resolve(filePath),
+                                line: lineNumber,
+                                column: 0,
+                                context: lineText
+                            });
                         }
-                        
-                        references.push({
-                            tableName,
-                            filePath: path.resolve(filePath),
-                            line: lineNumber,
-                            column: column,
-                            context: lineText
-                        });
                     }
                 } catch (parseError) {
                     // Skip invalid JSON lines
@@ -782,7 +791,9 @@ export class DatabaseAnalyzer {
                             
                             const distance = Math.abs(line1 - line2);
                             
-                            if (distance <= proximityThreshold && distance > 0) {
+                            // Allow distance = 0 to detect tables on the same line
+                            // This is common in JOINs: "JOIN users ON orders.user_id = users.id"
+                            if (distance <= proximityThreshold) {
                                 foundProximity = true;
                                 proximityCount++;
                                 
