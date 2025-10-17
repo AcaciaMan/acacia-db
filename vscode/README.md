@@ -34,6 +34,7 @@
 
 Create a JSON file with your database schema:
 
+**Simple Format** (array of table names):
 ```json
 {
   "tables": [
@@ -49,7 +50,35 @@ Create a JSON file with your database schema:
 }
 ```
 
-This helps filter analysis to only known tables/views, reducing false positives.
+**Extended Format** (array of table objects with metadata):
+```json
+{
+  "tables": [
+    {
+      "name": "users",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": ["id", "username", "email", "created_at"],
+      "metadata": {
+        "table_id": 1001,
+        "field_count": 4
+      }
+    },
+    {
+      "name": "orders",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": ["id", "user_id", "total", "status"],
+      "metadata": {
+        "table_id": 1002,
+        "field_count": 4
+      }
+    }
+  ]
+}
+```
+
+Both formats help filter analysis to only known tables/views, reducing false positives.
 
 ### Activity Bar
 
@@ -118,8 +147,55 @@ Customize Acacia DB through VS Code settings:
 - **`acaciaDb.tablePatterns`**: Regular expression patterns to detect table names in your code
 - **`acaciaDb.tablesViewsFile`**: Path to tables_views.json file containing database schema definitions
 - **`acaciaDb.sourceFolder`**: Source code folder to analyze for database references
+- **`acaciaDb.enableRelationshipDetection`**: Enable detection of table relationships (default: true)
+- **`acaciaDb.proximityThreshold`**: Number of lines within which tables are considered related (default: 50, range: 1-500)
 
 > **Tip**: Use the Configuration view in the Activity Bar for an easier way to set `tablesViewsFile` and `sourceFolder`!
+
+## Analysis Results
+
+After running an analysis, Acacia DB automatically saves the results to `.vscode/table_refs.json` in your workspace. This file contains:
+
+- **Complete reference data**: All table references with file paths, line numbers, and context
+- **Table relationships**: Tables that appear near each other in code
+- **Summary statistics**: Total tables, references, files analyzed, and relationship counts
+- **Analysis metadata**: Timestamp and configuration used
+
+### Benefits
+
+- **Fast reload**: Extension loads previous results on startup
+- **CI/CD integration**: Parse the JSON file in build pipelines
+- **Custom reporting**: Build your own analysis tools
+- **Change tracking**: Track database usage evolution over time
+- **Team sharing**: Optionally commit results for team visibility
+
+### Example Structure
+
+```json
+{
+  "timestamp": "2025-10-17T14:30:00.000Z",
+  "config": { "tablesViewsFile": "...", "sourceFolder": "..." },
+  "tables": [
+    {
+      "tableName": "CUSTOMERS",
+      "references": [...],
+      "files": [...]
+    }
+  ],
+  "relationships": [...],
+  "summary": {
+    "totalTables": 150,
+    "tablesWithReferences": 87,
+    "totalReferences": 523,
+    "totalFiles": 42,
+    "relationshipCount": 15
+  }
+}
+```
+
+See [docs/ANALYSIS-RESULTS.md](docs/ANALYSIS-RESULTS.md) for complete schema and usage examples.
+
+> **Note**: The `.vscode/table_refs.json` file is automatically added to `.gitignore`. Commit it if you want to share results with your team.
 
 ## Use Cases
 
@@ -141,11 +217,17 @@ Generate up-to-date documentation of database usage for new team members or exte
 ## Requirements
 
 - Visual Studio Code v1.105.0 or higher
+- **ripgrep (rg)** - Fast search tool for analyzing source code
+  - Windows: `choco install ripgrep` or `scoop install ripgrep`
+  - macOS: `brew install ripgrep`
+  - Linux: `apt install ripgrep` or `dnf install ripgrep`
+  - Or download from: https://github.com/BurntSushi/ripgrep/releases
 
 ## Known Issues
 
-- Currently supports basic SQL patterns; complex queries with aliases may not be fully detected
-- Performance on very large workspaces (10,000+ files) may require optimization
+- Requires ripgrep (rg) to be installed and available in system PATH
+- Performance on very large workspaces depends on ripgrep speed
+- Table relationships detection works best with consistent coding patterns
 
 ## Release Notes
 

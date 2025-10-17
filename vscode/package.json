@@ -191,6 +191,18 @@
           "type": "string",
           "default": "",
           "description": "Source code folder to analyze for database references"
+        },
+        "acaciaDb.enableRelationshipDetection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable detection of table relationships (may be resource intensive for large codebases)"
+        },
+        "acaciaDb.proximityThreshold": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Number of lines within which tables are considered related"
         }
       }
     }

@@ -1,0 +1,117 @@
+{
+  "timestamp": "2025-10-17T14:30:00.000Z",
+  "config": {
+    "tablesViewsFile": "c:\\data\\msdyn\\tables_views.json",
+    "sourceFolder": "c:\\project\\src"
+  },
+  "tables": [
+    {
+      "tableName": "ORDERS",
+      "references": [
+        {
+          "tableName": "ORDERS",
+          "filePath": "c:\\project\\src\\orders.js",
+          "line": 23,
+          "column": 8,
+          "context": "  FROM ORDERS"
+        },
+        {
+          "tableName": "ORDERS",
+          "filePath": "c:\\project\\src\\orders.js",
+          "line": 67,
+          "column": 15,
+          "context": "  UPDATE ORDERS SET status = 'completed'"
+        }
+      ],
+      "files": [
+        "c:\\project\\src\\orders.js"
+      ]
+    },
+    {
+      "tableName": "CUSTOMERS",
+      "references": [
+        {
+          "tableName": "CUSTOMERS",
+          "filePath": "c:\\project\\src\\database.js",
+          "line": 45,
+          "column": 12,
+          "context": "  const query = 'SELECT * FROM CUSTOMERS WHERE id = ?';"
+        },
+        {
+          "tableName": "CUSTOMERS",
+          "filePath": "c:\\project\\src\\reports.js",
+          "line": 78,
+          "column": 25,
+          "context": "  db.query('SELECT COUNT(*) FROM CUSTOMERS');"
+        }
+      ],
+      "files": [
+        "c:\\project\\src\\database.js",
+        "c:\\project\\src\\reports.js"
+      ]
+    },
+    {
+      "tableName": "PRODUCTS",
+      "references": [
+        {
+          "tableName": "PRODUCTS",
+          "filePath": "c:\\project\\src\\catalog.js",
+          "line": 12,
+          "column": 10,
+          "context": "  SELECT * FROM PRODUCTS"
+        }
+      ],
+      "files": [
+        "c:\\project\\src\\catalog.js"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "table1": "CUSTOMERS",
+      "table2": "ORDERS",
+      "occurrences": 3,
+      "files": [
+        "c:\\project\\src\\orders.js",
+        "c:\\project\\src\\reports.js"
+      ],
+      "proximityInstances": [
+        {
+          "file": "c:\\project\\src\\orders.js",
+          "line1": 45,
+          "line2": 67,
+          "distance": 22
+        },
+        {
+          "file": "c:\\project\\src\\reports.js",
+          "line1": 100,
+          "line2": 125,
+          "distance": 25
+        }
+      ]
+    },
+    {
+      "table1": "ORDERS",
+      "table2": "PRODUCTS",
+      "occurrences": 1,
+      "files": [
+        "c:\\project\\src\\orders.js"
+      ],
+      "proximityInstances": [
+        {
+          "file": "c:\\project\\src\\orders.js",
+          "line1": 67,
+          "line2": 89,
+          "distance": 22
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "totalTables": 150,
+    "tablesWithReferences": 3,
+    "totalReferences": 5,
+    "totalFiles": 3,
+    "relationshipCount": 2
+  }
+}

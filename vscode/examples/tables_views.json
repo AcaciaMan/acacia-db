@@ -1,4 +1,5 @@
 {
+  "description": "Simple format - array of table/view names as strings",
   "tables": [
     "users",
     "orders",
