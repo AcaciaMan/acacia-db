@@ -1,23 +1,47 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as readline from 'readline';
 import { ColumnNameMatcher, ColumnNameMatch } from './columnNameMatcher';
 
 // Tree item types
-export type ColumnExplorerTreeItem = TableTreeItem | LinkedTableTreeItem | ColumnLinkTreeItem | ColumnMatchTreeItem;
+export type ColumnExplorerTreeItem = TableTreeItem | ReferenceTypeTreeItem | LinkedTableTreeItem | ColumnLinkTreeItem | ColumnMatchTreeItem;
 
 // Table with linked tables
 export class TableTreeItem extends vscode.TreeItem {
     constructor(
         public readonly tableName: string,
         public readonly linkedTables: Map<string, LinkedTableInfo>,
+        public readonly referencedByTables: Map<string, LinkedTableInfo>,
         public readonly columns: string[]
     ) {
+        const referencesCount = linkedTables.size;
+        const referencedByCount = referencedByTables.size;
+        const totalLinks = referencesCount + referencedByCount;
+        
         super(tableName, vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = 'table';
         this.iconPath = new vscode.ThemeIcon('database');
-        this.description = `${linkedTables.size} linked table(s)`;
-        this.tooltip = `Table: ${tableName}\nColumns: ${columns.length}\nLinked Tables: ${linkedTables.size}`;
+        this.description = `${totalLinks} relationship(s)`;
+        this.tooltip = `Table: ${tableName}\nColumns: ${columns.length}\nReferences: ${referencesCount}\nReferenced by: ${referencedByCount}`;
+    }
+}
+
+// Reference type tree item (References or Referenced by)
+export class ReferenceTypeTreeItem extends vscode.TreeItem {
+    constructor(
+        public readonly tableName: string,
+        public readonly referenceType: 'references' | 'referencedBy',
+        public readonly linkedTables: Map<string, LinkedTableInfo>
+    ) {
+        const label = referenceType === 'references' ? 'References' : 'Referenced by';
+        const icon = referenceType === 'references' ? 'arrow-right' : 'arrow-left';
+        
+        super(label, vscode.TreeItemCollapsibleState.Expanded);
+        this.contextValue = 'referenceType';
+        this.iconPath = new vscode.ThemeIcon(icon);
+        this.description = `${linkedTables.size} table(s)`;
+        this.tooltip = `${label}: ${linkedTables.size} table(s)`;
     }
 }
 
@@ -36,6 +60,7 @@ export interface ColumnLink {
     occurrences: number;
     files: string[];
     contexts: ColumnLinkContext[];
+    direction: 'forward' | 'backward' | 'bidirectional'; // Relation direction
 }
 
 // Context where columns are linked
@@ -67,14 +92,25 @@ export class ColumnLinkTreeItem extends vscode.TreeItem {
         public readonly sourceTable: string,
         public readonly targetTable: string
     ) {
+        // Create label with direction indicator
+        const directionSymbol = link.direction === 'forward' ? '→' 
+                              : link.direction === 'backward' ? '←' 
+                              : '↔';
+        
         super(
-            `${link.sourceColumn} → ${link.targetColumn}`,
+            `${link.sourceColumn} ${directionSymbol} ${link.targetColumn}`,
             vscode.TreeItemCollapsibleState.Collapsed
         );
         this.contextValue = 'columnLink';
         this.iconPath = new vscode.ThemeIcon('symbol-field');
         this.description = `${link.occurrences} occurrence(s)`;
-        this.tooltip = `${sourceTable}.${link.sourceColumn} → ${targetTable}.${link.targetColumn}\nOccurrences: ${link.occurrences}\nFiles: ${link.files.length}`;
+        
+        // Enhanced tooltip with direction explanation
+        const directionText = link.direction === 'forward' ? 'Forward (lower order → higher order)'
+                            : link.direction === 'backward' ? 'Backward (higher order → lower order)'
+                            : 'Bidirectional (used both ways)';
+        
+        this.tooltip = `${sourceTable}.${link.sourceColumn} ${directionSymbol} ${targetTable}.${link.targetColumn}\nDirection: ${directionText}\nOccurrences: ${link.occurrences}\nFiles: ${link.files.length}`;
     }
 }
 
@@ -220,11 +256,20 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
             for (const table of data.tables) {
                 if (typeof table === 'object' && table.name) {
                     const columns = table.columns || [];
+                    const columnArray = Array.isArray(columns) ? columns : [];
+                    
+                    // Build column order map (lowercase column name -> order number)
+                    const columnOrder = new Map<string, number>();
+                    columnArray.forEach((col, index) => {
+                        columnOrder.set(col.toLowerCase(), index);
+                    });
+                    
                     schemas.set(table.name, {
                         name: table.name,
-                        columns: Array.isArray(columns) ? columns : []
+                        columns: columnArray,
+                        columnOrder: columnOrder
                     });
-                    console.log(`[Column Explorer] Added schema for ${table.name} with ${columns.length} columns`);
+                    console.log(`[Column Explorer] Added schema for ${table.name} with ${columnArray.length} columns`);
                 }
             }
         }
@@ -299,7 +344,8 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
                 this.tableData.set(tableName, {
                     tableName: tableName,
                     columns: schemas.get(tableName)?.columns || [],
-                    linkedTables: new Map()
+                    linkedTables: new Map(),
+                    referencedByTables: new Map()
                 });
                 initializedCount++;
                 console.log(`[Column Explorer] ✓ Initialized table ${tableName}`);
@@ -456,16 +502,92 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
         let foundLinks = false;
         
         try {
-            const content = fs.readFileSync(filePath, 'utf8');
-            const lines = content.split('\n');
+            // Check file size to decide read strategy
+            const stats = fs.statSync(filePath);
+            const fileSizeKB = stats.size / 1024;
             
-            // Note: We don't skip files based on size or line count anymore
-            // because this file is already known to contain table references
-            // (it came from table_refs.json with these specific tables)
+            if (fileSizeKB < 50) {
+                // Small file: use fast synchronous read
+                const content = fs.readFileSync(filePath, 'utf8');
+                const lines = content.split('\n');
+                foundLinks = this.processLines(lines, allMatcher, columnToTables, tablesInFile, filePath, occurrences);
+            } else {
+                // Large file: use streaming for better memory and performance
+                foundLinks = await this.processFileStream(filePath, allMatcher, columnToTables, tablesInFile, occurrences);
+            }
+        } catch (error) {
+            console.error(`[Column Explorer] Error reading file ${filePath}:`, error);
+        }
+        
+        return foundLinks;
+    }
+
+    /**
+     * Process lines from array (for small files)
+     */
+    private processLines(
+        lines: string[],
+        allMatcher: ColumnNameMatcher,
+        columnToTables: Map<string, string[]>,
+        tablesInFile: Set<string>,
+        filePath: string,
+        occurrences: number
+    ): boolean {
+        let foundLinks = false;
+        
+        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+            const line = lines[lineNum];
             
-            // Process each line
-            for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-                const line = lines[lineNum];
+            // Skip empty lines, very short lines, and common comment patterns
+            const trimmedLine = line.trim();
+            if (trimmedLine.length < 3 || 
+                trimmedLine.startsWith('//') || 
+                trimmedLine.startsWith('/*') || 
+                trimmedLine.startsWith('*') ||
+                trimmedLine.startsWith('#')) {
+                continue;
+            }
+            
+            const linksFound = this.processLine(
+                trimmedLine,
+                lineNum + 1,
+                allMatcher,
+                columnToTables,
+                tablesInFile,
+                filePath,
+                occurrences
+            );
+            
+            if (linksFound) {
+                foundLinks = true;
+            }
+        }
+        
+        return foundLinks;
+    }
+
+    /**
+     * Process file as stream (for large files)
+     */
+    private async processFileStream(
+        filePath: string,
+        allMatcher: ColumnNameMatcher,
+        columnToTables: Map<string, string[]>,
+        tablesInFile: Set<string>,
+        occurrences: number
+    ): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            let foundLinks = false;
+            let lineNum = 0;
+            
+            const fileStream = fs.createReadStream(filePath, { encoding: 'utf8' });
+            const rl = readline.createInterface({
+                input: fileStream,
+                crlfDelay: Infinity
+            });
+            
+            rl.on('line', (line: string) => {
+                lineNum++;
                 
                 // Skip empty lines, very short lines, and common comment patterns
                 const trimmedLine = line.trim();
@@ -474,114 +596,145 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
                     trimmedLine.startsWith('/*') || 
                     trimmedLine.startsWith('*') ||
                     trimmedLine.startsWith('#')) {
-                    continue;
+                    return;
                 }
                 
-                // OPTIMIZED: Find ALL column names in line with single matcher
-                const columnMatches = allMatcher.findColumnNamesInString(line);
+                const linksFound = this.processLine(
+                    trimmedLine,
+                    lineNum,
+                    allMatcher,
+                    columnToTables,
+                    tablesInFile,
+                    filePath,
+                    occurrences
+                );
                 
-                if (columnMatches.length === 0) {
-                    continue;
+                if (linksFound) {
+                    foundLinks = true;
                 }
+            });
+            
+            rl.on('close', () => {
+                resolve(foundLinks);
+            });
+            
+            rl.on('error', (error) => {
+                reject(error);
+            });
+        });
+    }
+
+    /**
+     * Process a single line looking for column matches
+     */
+    private processLine(
+        trimmedLine: string,
+        lineNum: number,
+        allMatcher: ColumnNameMatcher,
+        columnToTables: Map<string, string[]>,
+        tablesInFile: Set<string>,
+        filePath: string,
+        occurrences: number
+    ): boolean {
+        let foundLinks = false;
+        
+        // Find ALL column names in line with single matcher
+        const columnMatches = allMatcher.findColumnNamesInString(trimmedLine);
+        
+        if (columnMatches.length === 0) {
+            return false;
+        }
+        
+        // Build list of unique columns found and their tables (filtered to tables in file)
+        const columnsFound = new Map<string, {columnName: string, tables: string[]}>();
+        for (const match of columnMatches) {
+            const columnLower = match.columnName.toLowerCase();
+            const allTablesForColumn = columnToTables.get(columnLower);
+            if (allTablesForColumn) {
+                // FILTER: Only include tables that are actually in this file
+                const tablesInFileForColumn = allTablesForColumn.filter(t => tablesInFile.has(t));
                 
-                // Build list of unique columns found and their tables (filtered to tables in file)
-                const columnsFound = new Map<string, {columnName: string, tables: string[]}>();
-                for (const match of columnMatches) {
-                    const columnLower = match.columnName.toLowerCase();
-                    const allTablesForColumn = columnToTables.get(columnLower);
-                    if (allTablesForColumn) {
-                        // FILTER: Only include tables that are actually in this file
-                        const tablesInFileForColumn = allTablesForColumn.filter(t => tablesInFile.has(t));
-                        
-                        if (tablesInFileForColumn.length > 0) {
-                            if (!columnsFound.has(columnLower)) {
-                                columnsFound.set(columnLower, {
-                                    columnName: match.columnName,
-                                    tables: tablesInFileForColumn
-                                });
-                            }
-                        }
+                if (tablesInFileForColumn.length > 0) {
+                    if (!columnsFound.has(columnLower)) {
+                        columnsFound.set(columnLower, {
+                            columnName: match.columnName,
+                            tables: tablesInFileForColumn
+                        });
                     }
                 }
-                
-                if (columnsFound.size < 1) {
-                    continue;
-                }
-                
-                // Convert to array for easier iteration
-                const columnEntries = Array.from(columnsFound.values());
-                
-                // Case 1: Multiple different columns found
-                if (columnsFound.size >= 2) {
-                    // Create links between all column pairs
-                    for (let i = 0; i < columnEntries.length; i++) {
-                        for (let j = i + 1; j < columnEntries.length; j++) {
-                            const col1 = columnEntries[i];
-                            const col2 = columnEntries[j];
-                            
-                            // Create links for each table combination (only for tables in this file)
-                            for (const table1 of col1.tables) {
-                                for (const table2 of col2.tables) {
-                                    if (table1 !== table2) {
-                                        // Link between different tables
-                                        this.recordColumnLink(
-                                            table1,
-                                            table2,
-                                            col1.columnName,
-                                            col2.columnName,
-                                            filePath,
-                                            lineNum + 1,
-                                            trimmedLine,
-                                            occurrences
-                                        );
-                                        foundLinks = true;
-                                    } else {
-                                        // Same column pair from same table (self-link)
-                                        this.recordColumnLink(
-                                            table1,
-                                            table1,
-                                            col1.columnName,
-                                            col2.columnName,
-                                            filePath,
-                                            lineNum + 1,
-                                            trimmedLine,
-                                            occurrences
-                                        );
-                                        foundLinks = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // Case 2: Single column found (appears in multiple tables in this file)
-                    const col = columnEntries[0];
-                    if (col.tables.length >= 2) {
-                        // Same column name exists in multiple tables in this file - create links
-                        for (let i = 0; i < col.tables.length; i++) {
-                            for (let j = i + 1; j < col.tables.length; j++) {
+            }
+        }
+        
+        if (columnsFound.size < 1) {
+            return false;
+        }
+        
+        // Convert to array for easier iteration
+        const columnEntries = Array.from(columnsFound.values());
+        
+        // Case 1: Multiple different columns found
+        if (columnsFound.size >= 2) {
+            // Create links between all column pairs
+            for (let i = 0; i < columnEntries.length; i++) {
+                for (let j = i + 1; j < columnEntries.length; j++) {
+                    const col1 = columnEntries[i];
+                    const col2 = columnEntries[j];
+                    
+                    // Create links for each table combination (only for tables in this file)
+                    for (const table1 of col1.tables) {
+                        for (const table2 of col2.tables) {
+                            if (table1 !== table2) {
+                                // Link between different tables
                                 this.recordColumnLink(
-                                    col.tables[i],
-                                    col.tables[j],
-                                    col.columnName,
-                                    col.columnName,
+                                    table1,
+                                    table2,
+                                    col1.columnName,
+                                    col2.columnName,
                                     filePath,
-                                    lineNum + 1,
+                                    lineNum,
+                                    trimmedLine,
+                                    occurrences
+                                );
+                                foundLinks = true;
+                            } else {
+                                // Same column pair from same table (self-link)
+                                this.recordColumnLink(
+                                    table1,
+                                    table1,
+                                    col1.columnName,
+                                    col2.columnName,
+                                    filePath,
+                                    lineNum,
                                     trimmedLine,
                                     occurrences
                                 );
                                 foundLinks = true;
                             }
                         }
-                    } else if (col.tables.length === 1) {
-                        // Single column from single table (self-reference)
-                        // Could record as single-table link if needed
-                        // For now, skip as it doesn't show relationships
                     }
                 }
             }
-        } catch (error) {
-            console.error(`[Column Explorer] Error reading file ${filePath}:`, error);
+        } else {
+            // Case 2: Single column found (appears in multiple tables in this file)
+            const col = columnEntries[0];
+            if (col.tables.length >= 2) {
+                // Same column name exists in multiple tables in this file - create links
+                for (let i = 0; i < col.tables.length; i++) {
+                    for (let j = i + 1; j < col.tables.length; j++) {
+                        this.recordColumnLink(
+                            col.tables[i],
+                            col.tables[j],
+                            col.columnName,
+                            col.columnName,
+                            filePath,
+                            lineNum,
+                            trimmedLine,
+                            occurrences
+                        );
+                        foundLinks = true;
+                    }
+                }
+            }
         }
         
         return foundLinks;
@@ -666,18 +819,38 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
         context: string,
         tableOccurrences: number
     ): void {
+        // Determine direction based on column order and table name
+        const direction = this.determineRelationDirection(
+            sourceTable,
+            targetTable,
+            sourceColumn,
+            targetColumn
+        );
+        
         // Ensure source table exists
         if (!this.tableData.has(sourceTable)) {
             this.tableData.set(sourceTable, {
                 tableName: sourceTable,
                 columns: [],
-                linkedTables: new Map()
+                linkedTables: new Map(),
+                referencedByTables: new Map()
+            });
+        }
+        
+        // Ensure target table exists
+        if (!this.tableData.has(targetTable)) {
+            this.tableData.set(targetTable, {
+                tableName: targetTable,
+                columns: [],
+                linkedTables: new Map(),
+                referencedByTables: new Map()
             });
         }
         
         const tableData = this.tableData.get(sourceTable)!;
+        const targetTableData = this.tableData.get(targetTable)!;
         
-        // Ensure linked table entry exists
+        // Record in sourceTable.linkedTables (sourceTable references targetTable)
         if (!tableData.linkedTables.has(targetTable)) {
             tableData.linkedTables.set(targetTable, {
                 tableName: targetTable,
@@ -694,7 +867,7 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
             linkedTableInfo.files.push(file);
         }
         
-        // Find or create column link
+        // Find or create column link in linkedTables
         let columnLink = linkedTableInfo.linkedColumns.find(
             link => link.sourceColumn === sourceColumn && link.targetColumn === targetColumn
         );
@@ -705,9 +878,15 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
                 targetColumn,
                 occurrences: 0,
                 files: [],
-                contexts: []
+                contexts: [],
+                direction: direction
             };
             linkedTableInfo.linkedColumns.push(columnLink);
+        } else {
+            // Update direction if we see both directions (bidirectional)
+            if (columnLink.direction !== direction && direction !== 'bidirectional') {
+                columnLink.direction = 'bidirectional';
+            }
         }
         
         // Add context
@@ -716,6 +895,118 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
             columnLink.files.push(file);
         }
         columnLink.contexts.push({ file, line, context });
+        
+        // Also record in targetTable.referencedByTables (targetTable is referenced by sourceTable)
+        if (!targetTableData.referencedByTables.has(sourceTable)) {
+            targetTableData.referencedByTables.set(sourceTable, {
+                tableName: sourceTable,
+                occurrences: tableOccurrences,
+                linkedColumns: [],
+                files: []
+            });
+        }
+        
+        const referencedByInfo = targetTableData.referencedByTables.get(sourceTable)!;
+        
+        // Add file if not already present
+        if (!referencedByInfo.files.includes(file)) {
+            referencedByInfo.files.push(file);
+        }
+        
+        // Find or create column link in referencedByTables
+        let referencedByLink = referencedByInfo.linkedColumns.find(
+            link => link.sourceColumn === sourceColumn && link.targetColumn === targetColumn
+        );
+        
+        if (!referencedByLink) {
+            referencedByLink = {
+                sourceColumn,
+                targetColumn,
+                occurrences: 0,
+                files: [],
+                contexts: [],
+                direction: direction
+            };
+            referencedByInfo.linkedColumns.push(referencedByLink);
+        } else {
+            // Update direction if we see both directions (bidirectional)
+            if (referencedByLink.direction !== direction && direction !== 'bidirectional') {
+                referencedByLink.direction = 'bidirectional';
+            }
+        }
+        
+        // Add context to referencedBy
+        referencedByLink.occurrences++;
+        if (!referencedByLink.files.includes(file)) {
+            referencedByLink.files.push(file);
+        }
+        referencedByLink.contexts.push({ file, line, context });
+    }
+
+    /**
+     * Determine relation direction based on column order and table name
+     * Rules:
+     * 1. If column order differs, direction goes from lower order to higher order
+     * 2. If column orders are equal, direction goes from shorter table name to longer table name
+     * 3. Forward means sourceTable -> targetTable, backward means opposite
+     */
+    private determineRelationDirection(
+        sourceTable: string,
+        targetTable: string,
+        sourceColumn: string,
+        targetColumn: string
+    ): 'forward' | 'backward' | 'bidirectional' {
+        const sourceTableData = this.tableData.get(sourceTable);
+        const targetTableData = this.tableData.get(targetTable);
+        
+        // If we don't have schema info, treat as forward
+        if (!sourceTableData || !targetTableData) {
+            return 'forward';
+        }
+        
+        // Get column order numbers
+        const sourceOrder = this.getColumnOrder(sourceTable, sourceColumn);
+        const targetOrder = this.getColumnOrder(targetTable, targetColumn);
+        
+        // If we can't determine order, use forward
+        if (sourceOrder === -1 || targetOrder === -1) {
+            return 'forward';
+        }
+        
+        // Compare column orders
+        if (sourceOrder < targetOrder) {
+            return 'forward'; // Source has lower order -> forward direction
+        } else if (sourceOrder > targetOrder) {
+            return 'backward'; // Source has higher order -> backward direction
+        } else {
+            // Column orders are equal, compare table name lengths
+            if (sourceTable.length < targetTable.length) {
+                return 'forward'; // Shorter table name -> forward
+            } else if (sourceTable.length > targetTable.length) {
+                return 'backward'; // Longer table name -> backward
+            } else {
+                // Same length, use alphabetical
+                return sourceTable.localeCompare(targetTable) < 0 ? 'forward' : 'backward';
+            }
+        }
+    }
+
+    /**
+     * Get column order number for a column in a table
+     * Returns -1 if not found
+     */
+    private getColumnOrder(tableName: string, columnName: string): number {
+        const tableData = this.tableData.get(tableName);
+        if (!tableData) {
+            return -1;
+        }
+        
+        // Find in columns array (case-insensitive)
+        const index = tableData.columns.findIndex(
+            col => col.toLowerCase() === columnName.toLowerCase()
+        );
+        
+        return index;
     }
 
     /**
@@ -750,8 +1041,13 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
         }
         
         if (element instanceof TableTreeItem) {
-            // Show linked tables
-            return this.getLinkedTables(element);
+            // Show reference types (References and Referenced by)
+            return this.getReferenceTypes(element);
+        }
+        
+        if (element instanceof ReferenceTypeTreeItem) {
+            // Show linked tables for this reference type
+            return this.getLinkedTablesForType(element);
         }
         
         if (element instanceof LinkedTableTreeItem) {
@@ -789,32 +1085,84 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
             items.push(new TableTreeItem(
                 tableName,
                 data.linkedTables,
+                data.referencedByTables,
                 data.columns
             ));
         }
         
-        // Sort by table name
-        items.sort((a, b) => a.tableName.localeCompare(b.tableName));
+        // Sort by relevance: total number of relationships (descending), then by table name
+        items.sort((a, b) => {
+            const totalA = a.linkedTables.size + a.referencedByTables.size;
+            const totalB = b.linkedTables.size + b.referencedByTables.size;
+            
+            if (totalA !== totalB) {
+                return totalB - totalA; // More relationships first
+            }
+            
+            return a.tableName.localeCompare(b.tableName); // Alphabetical as tiebreaker
+        });
         
         return items;
     }
 
     /**
-     * Get linked tables for a table
+     * Get reference types for a table (References and Referenced by)
      */
-    private getLinkedTables(table: TableTreeItem): ColumnExplorerTreeItem[] {
+    private getReferenceTypes(table: TableTreeItem): ColumnExplorerTreeItem[] {
+        const items: ReferenceTypeTreeItem[] = [];
+        
+        // Add "References" if table references other tables
+        if (table.linkedTables.size > 0) {
+            items.push(new ReferenceTypeTreeItem(
+                table.tableName,
+                'references',
+                table.linkedTables
+            ));
+        }
+        
+        // Add "Referenced by" if table is referenced by other tables
+        if (table.referencedByTables.size > 0) {
+            items.push(new ReferenceTypeTreeItem(
+                table.tableName,
+                'referencedBy',
+                table.referencedByTables
+            ));
+        }
+        
+        return items;
+    }
+
+    /**
+     * Get linked tables for a reference type
+     */
+    private getLinkedTablesForType(referenceType: ReferenceTypeTreeItem): ColumnExplorerTreeItem[] {
         const items: LinkedTableTreeItem[] = [];
         
-        for (const [linkedTableName, info] of table.linkedTables) {
+        for (const [linkedTableName, info] of referenceType.linkedTables) {
             items.push(new LinkedTableTreeItem(
-                table.tableName,
+                referenceType.tableName,
                 linkedTableName,
                 info
             ));
         }
         
-        // Sort by occurrences descending
-        items.sort((a, b) => b.info.occurrences - a.info.occurrences);
+        // Sort by relevance: occurrences (descending), then number of column links, then table name
+        items.sort((a, b) => {
+            // Primary: More occurrences first
+            if (a.info.occurrences !== b.info.occurrences) {
+                return b.info.occurrences - a.info.occurrences;
+            }
+            
+            // Secondary: More column links first
+            const columnLinksA = a.info.linkedColumns.length;
+            const columnLinksB = b.info.linkedColumns.length;
+            if (columnLinksA !== columnLinksB) {
+                return columnLinksB - columnLinksA;
+            }
+            
+            // Tertiary: Alphabetical by table name
+            return a.linkedTable.localeCompare(b.linkedTable);
+        });
         
         return items;
     }
@@ -833,8 +1181,23 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
             ));
         }
         
-        // Sort by occurrences descending
-        items.sort((a, b) => b.link.occurrences - a.link.occurrences);
+        // Sort by relevance: occurrences (descending), then number of files, then column name
+        items.sort((a, b) => {
+            // Primary: More occurrences first
+            if (a.link.occurrences !== b.link.occurrences) {
+                return b.link.occurrences - a.link.occurrences;
+            }
+            
+            // Secondary: More files first (indicates wider usage)
+            const filesA = a.link.files.length;
+            const filesB = b.link.files.length;
+            if (filesA !== filesB) {
+                return filesB - filesA;
+            }
+            
+            // Tertiary: Alphabetical by source column name
+            return a.link.sourceColumn.localeCompare(b.link.sourceColumn);
+        });
         
         return items;
     }
@@ -843,13 +1206,27 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
      * Get column matches (contexts) for a column link
      */
     private getColumnMatches(columnLink: ColumnLinkTreeItem): ColumnExplorerTreeItem[] {
-        return columnLink.link.contexts.map(context => 
+        const items = columnLink.link.contexts.map(context => 
             new ColumnMatchTreeItem(
                 context,
                 columnLink.link.sourceColumn,
                 columnLink.link.targetColumn
             )
         );
+        
+        // Sort by relevance: line number (ascending) within each file, then by file name
+        items.sort((a, b) => {
+            // Primary: Sort by file name
+            const fileComparison = a.context.file.localeCompare(b.context.file);
+            if (fileComparison !== 0) {
+                return fileComparison;
+            }
+            
+            // Secondary: Within same file, sort by line number (earliest first)
+            return a.context.line - b.context.line;
+        });
+        
+        return items;
     }
 }
 
@@ -859,6 +1236,7 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
 interface TableSchema {
     name: string;
     columns: string[];
+    columnOrder: Map<string, number>; // Map from column name (lowercase) to order number
 }
 
 /**
@@ -867,5 +1245,6 @@ interface TableSchema {
 interface TableData {
     tableName: string;
     columns: string[];
-    linkedTables: Map<string, LinkedTableInfo>;
+    linkedTables: Map<string, LinkedTableInfo>; // Tables this table references
+    referencedByTables: Map<string, LinkedTableInfo>; // Tables that reference this table
 }
