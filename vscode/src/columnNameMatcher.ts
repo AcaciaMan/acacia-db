@@ -152,8 +152,20 @@ export class ColumnNameMatcher {
     }
 
     /**
+     * Check if a character is a word boundary character (not alphanumeric or underscore)
+     */
+    private isWordBoundary(char: string | undefined): boolean {
+        if (char === undefined) {
+            return true; // Start or end of string is a boundary
+        }
+        // Word characters are: letters, digits, underscore
+        return !/[a-zA-Z0-9_]/.test(char);
+    }
+
+    /**
      * Find all column names in the given character array.
      * Returns the longest matches, avoiding overlapping results.
+     * Only matches complete words (surrounded by word boundaries).
      * 
      * @param chars - Array of characters to search through
      * @param caseSensitive - Whether to perform case-sensitive matching (default: false)
@@ -164,12 +176,27 @@ export class ColumnNameMatcher {
         let i = 0;
 
         while (i < chars.length) {
+            // Check if we're at a word boundary before attempting match
+            const prevChar = i > 0 ? chars[i - 1] : undefined;
+            if (!this.isWordBoundary(prevChar)) {
+                // Not at word boundary, skip
+                i++;
+                continue;
+            }
+
             const match = this.findLongestMatchAt(chars, i, caseSensitive);
             
             if (match) {
-                matches.push(match);
-                // Move past this match
-                i = match.endIndex + 1;
+                // Verify word boundary after the match
+                const nextChar = match.endIndex + 1 < chars.length ? chars[match.endIndex + 1] : undefined;
+                if (this.isWordBoundary(nextChar)) {
+                    matches.push(match);
+                    // Move past this match
+                    i = match.endIndex + 1;
+                } else {
+                    // Not a complete word, move to next character
+                    i++;
+                }
             } else {
                 // No match at this position, move to next character
                 i++;

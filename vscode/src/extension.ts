@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { DatabaseAnalyzer, DatabaseReference } from './databaseAnalyzer';
 import { DatabaseTreeDataProvider } from './databaseTreeView';
 import { ConfigurationTreeDataProvider } from './configurationTreeView';
+import { ColumnExplorerProvider } from './columnExplorerTreeView';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -16,6 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const analyzer = new DatabaseAnalyzer();
 	const treeDataProvider = new DatabaseTreeDataProvider(analyzer);
 	const configProvider = new ConfigurationTreeDataProvider();
+	const columnExplorerProvider = new ColumnExplorerProvider();
 	
 	// Register the tree views
 	const treeView = vscode.window.createTreeView('acaciaDbExplorer', {
@@ -26,6 +28,11 @@ export function activate(context: vscode.ExtensionContext) {
 	const configView = vscode.window.createTreeView('acaciaDbConfiguration', {
 		treeDataProvider: configProvider,
 		showCollapseAll: false
+	});
+
+	const columnExplorerView = vscode.window.createTreeView('acaciaDbColumnExplorer', {
+		treeDataProvider: columnExplorerProvider,
+		showCollapseAll: true
 	});
 
 	// Command: Select Tables/Views JSON File
@@ -242,9 +249,63 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// Command: Analyze Column Relationships
+	const analyzeColumnRelationships = vscode.commands.registerCommand('acacia-db.analyzeColumnRelationships', async () => {
+		await columnExplorerProvider.analyzeColumnRelationships();
+	});
+
+	// Command: Refresh Column Explorer
+	const refreshColumnExplorer = vscode.commands.registerCommand('acacia-db.refreshColumnExplorer', async () => {
+		columnExplorerProvider.refresh();
+		vscode.window.showInformationMessage('Column Explorer refreshed');
+	});
+
+	// Command: Filter Column Explorer
+	const filterColumnExplorer = vscode.commands.registerCommand('acacia-db.filterColumnExplorer', async () => {
+		const currentFilter = columnExplorerProvider.getFilter();
+		const filterText = await vscode.window.showInputBox({
+			prompt: 'Enter text to filter table names',
+			placeHolder: 'e.g. user, order, customer',
+			value: currentFilter,
+			title: 'Filter Tables in Column Explorer'
+		});
+
+		if (filterText !== undefined) {
+			columnExplorerProvider.setFilter(filterText);
+			if (filterText.trim().length > 0) {
+				vscode.window.showInformationMessage(`Filtering tables by: "${filterText}"`);
+			}
+		}
+	});
+
+	// Command: Clear Column Explorer Filter
+	const clearColumnExplorerFilter = vscode.commands.registerCommand('acacia-db.clearColumnExplorerFilter', async () => {
+		const currentFilter = columnExplorerProvider.getFilter();
+		if (currentFilter.length > 0) {
+			columnExplorerProvider.setFilter('');
+			vscode.window.showInformationMessage('Filter cleared');
+		} else {
+			vscode.window.showInformationMessage('No filter active');
+		}
+	});
+
+	// Command: Open Column Reference
+	const openColumnReference = vscode.commands.registerCommand('acacia-db.openColumnReference', async (filePath: string, line: number) => {
+		try {
+			const document = await vscode.workspace.openTextDocument(filePath);
+			const editor = await vscode.window.showTextDocument(document);
+			const position = new vscode.Position(line - 1, 0);
+			editor.selection = new vscode.Selection(position, position);
+			editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+		} catch (error) {
+			vscode.window.showErrorMessage(`Failed to open file: ${error}`);
+		}
+	});
+
 	context.subscriptions.push(
 		treeView,
 		configView,
+		columnExplorerView,
 		selectTablesFile,
 		selectSourceFolder,
 		clearTablesFile,
@@ -257,7 +318,12 @@ export function activate(context: vscode.ExtensionContext) {
 		analyzeWorkspace,
 		findTableReferences,
 		generateDocumentation,
-		showDatabaseReport
+		showDatabaseReport,
+		analyzeColumnRelationships,
+		refreshColumnExplorer,
+		filterColumnExplorer,
+		clearColumnExplorerFilter,
+		openColumnReference
 	);
 }
 

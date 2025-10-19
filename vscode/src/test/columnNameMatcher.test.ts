@@ -264,6 +264,73 @@ suite('ColumnNameMatcher Test Suite', () => {
         assert.strictEqual(matches[0].endIndex, 6);
     });
 
+    test('Should respect word boundaries - not match partial words', () => {
+        matcher.addColumnNames(['id', 'name', 'user']);
+        
+        // Should NOT match 'id' in 'field', 'name' in 'filename', 'user' in 'username'
+        const text1 = 'field = 123';
+        const matches1 = matcher.findColumnNamesInString(text1);
+        assert.strictEqual(matches1.length, 0, 'Should not match "id" inside "field"');
+        
+        const text2 = 'filename = "test.txt"';
+        const matches2 = matcher.findColumnNamesInString(text2);
+        assert.strictEqual(matches2.length, 0, 'Should not match "name" inside "filename"');
+        
+        const text3 = 'username = "john"';
+        const matches3 = matcher.findColumnNamesInString(text3);
+        assert.strictEqual(matches3.length, 0, 'Should not match "user" inside "username"');
+    });
+
+    test('Should match at word boundaries', () => {
+        matcher.addColumnNames(['id', 'name', 'status']);
+        
+        // Should match when surrounded by non-word characters
+        const text = 'WHERE id = 123 AND name = "test" OR (status IN [1,2])';
+        const matches = matcher.findColumnNamesInString(text);
+        
+        assert.strictEqual(matches.length, 3);
+        assert.strictEqual(matches[0].columnName, 'id');
+        assert.strictEqual(matches[1].columnName, 'name');
+        assert.strictEqual(matches[2].columnName, 'status');
+    });
+
+    test('Should match at start and end of string', () => {
+        matcher.addColumnNames(['id', 'name']);
+        
+        const text1 = 'id';
+        const matches1 = matcher.findColumnNamesInString(text1);
+        assert.strictEqual(matches1.length, 1);
+        assert.strictEqual(matches1[0].columnName, 'id');
+        
+        const text2 = 'name';
+        const matches2 = matcher.findColumnNamesInString(text2);
+        assert.strictEqual(matches2.length, 1);
+        assert.strictEqual(matches2[0].columnName, 'name');
+    });
+
+    test('Should handle underscores as word characters', () => {
+        matcher.addColumnNames(['user', 'id']);
+        
+        // Should NOT match 'user' or 'id' separately in 'user_id' (underscores are word chars)
+        const text = 'user_id = 123';
+        const matches = matcher.findColumnNamesInString(text);
+        
+        // Should find nothing because 'user' and 'id' are part of 'user_id'
+        assert.strictEqual(matches.length, 0);
+    });
+
+    test('Word boundary with punctuation and operators', () => {
+        matcher.addColumnNames(['price', 'quantity', 'total']);
+        
+        const text = 'price * quantity = total';
+        const matches = matcher.findColumnNamesInString(text);
+        
+        assert.strictEqual(matches.length, 3);
+        assert.strictEqual(matches[0].columnName, 'price');
+        assert.strictEqual(matches[1].columnName, 'quantity');
+        assert.strictEqual(matches[2].columnName, 'total');
+    });
+
     test('Performance test with many column names', () => {
         // Add a large number of column names
         const columns: string[] = [];

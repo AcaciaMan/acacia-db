@@ -52,6 +52,12 @@
           "name": "Database Explorer",
           "icon": "resources/database-icon.svg",
           "contextualTitle": "Acacia DB"
+        },
+        {
+          "id": "acaciaDbColumnExplorer",
+          "name": "Column Explorer",
+          "icon": "resources/database-icon.svg",
+          "contextualTitle": "Column Relationships"
         }
       ]
     },
@@ -119,6 +125,30 @@
         "command": "acacia-db.clearSourceFolder",
         "title": "Clear Source Folder",
         "icon": "$(close)"
+      },
+      {
+        "command": "acacia-db.analyzeColumnRelationships",
+        "title": "Analyze Column Relationships",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "acacia-db.refreshColumnExplorer",
+        "title": "Refresh Column Explorer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "acacia-db.filterColumnExplorer",
+        "title": "Filter Tables",
+        "icon": "$(search)"
+      },
+      {
+        "command": "acacia-db.clearColumnExplorerFilter",
+        "title": "Clear Filter",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "acacia-db.openColumnReference",
+        "title": "Open Column Reference"
       }
     ],
     "menus": {
@@ -150,6 +180,26 @@
         {
           "command": "acacia-db.showDatabaseReport",
           "when": "view == acaciaDbExplorer"
+        },
+        {
+          "command": "acacia-db.analyzeColumnRelationships",
+          "when": "view == acaciaDbColumnExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "acacia-db.refreshColumnExplorer",
+          "when": "view == acaciaDbColumnExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "acacia-db.filterColumnExplorer",
+          "when": "view == acaciaDbColumnExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "acacia-db.clearColumnExplorerFilter",
+          "when": "view == acaciaDbColumnExplorer",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -172,6 +222,12 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "acaciaDbColumnExplorer",
+        "contents": "No column relationships found.\n\nTo analyze column relationships:\n1. Configure tables_views.json with column definitions\n2. Run 'Analyze Workspace' in Database Explorer\n3. Click 'Analyze Column Relationships' button\n\n[Analyze Workspace](command:acacia-db.analyzeWorkspace)\n[Configure Settings](command:workbench.action.openSettings?%22acaciaDb%22)"
+      }
+    ],
     "keybindings": [
       {
         "command": "acacia-db.filterTables",
