@@ -165,7 +165,11 @@ export class ColumnNameMatcher {
     /**
      * Find all column names in the given character array.
      * Returns the longest matches, avoiding overlapping results.
-     * Only matches complete words (surrounded by word boundaries).
+     * Algorithm:
+     * 1. Skip content inside quoted strings
+     * 2. Find longest possible match at each position
+     * 3. Verify word boundaries before and after the match
+     * 4. Reject type declarations (followed by '[')
      * 
      * @param chars - Array of characters to search through
      * @param caseSensitive - Whether to perform case-sensitive matching (default: false)
@@ -176,25 +180,44 @@ export class ColumnNameMatcher {
         let i = 0;
 
         while (i < chars.length) {
-            // Check if we're at a word boundary before attempting match
-            const prevChar = i > 0 ? chars[i - 1] : undefined;
-            if (!this.isWordBoundary(prevChar)) {
-                // Not at word boundary, skip
-                i++;
+            const currentChar = chars[i];
+            
+            // Skip content inside quoted strings
+            // In AL, column names are quoted like "Column Name", so we should skip matching inside quotes
+            if (currentChar === '"' || currentChar === "'") {
+                const quoteChar = currentChar;
+                i++; // Move past opening quote
+                
+                // Skip until we find closing quote or end of string
+                while (i < chars.length && chars[i] !== quoteChar) {
+                    i++;
+                }
+                
+                if (i < chars.length) {
+                    i++; // Move past closing quote
+                }
                 continue;
             }
-
+            
+            // Try to find longest match at current position
             const match = this.findLongestMatchAt(chars, i, caseSensitive);
             
             if (match) {
-                // Verify word boundary after the match
+                // Verify word boundary BEFORE the match
+                const prevChar = i > 0 ? chars[i - 1] : undefined;
+                const beforeIsWordBoundary = this.isWordBoundary(prevChar);
+                
+                // Verify word boundary AFTER the match
                 const nextChar = match.endIndex + 1 < chars.length ? chars[match.endIndex + 1] : undefined;
-                if (this.isWordBoundary(nextChar)) {
+                const afterIsWordBoundary = this.isWordBoundary(nextChar);
+                
+                // Accept match only if has word boundaries before and after
+                if (beforeIsWordBoundary && afterIsWordBoundary) {
                     matches.push(match);
                     // Move past this match
                     i = match.endIndex + 1;
                 } else {
-                    // Not a complete word, move to next character
+                    // Not a valid match, move to next character
                     i++;
                 }
             } else {

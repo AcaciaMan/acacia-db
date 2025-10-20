@@ -685,16 +685,36 @@ export class ColumnExplorerProvider implements vscode.TreeDataProvider<ColumnExp
                         for (const table2 of col2.tables) {
                             if (table1 !== table2) {
                                 // Link between different tables
-                                this.recordColumnLink(
-                                    table1,
-                                    table2,
-                                    col1.columnName,
-                                    col2.columnName,
-                                    filePath,
-                                    lineNum,
-                                    trimmedLine,
-                                    occurrences
-                                );
+                                // Determine correct order based on column order numbers
+                                const order1 = this.getColumnOrder(table1, col1.columnName);
+                                const order2 = this.getColumnOrder(table2, col2.columnName);
+                                
+                                // Always record link from lower order to higher order for consistency
+                                if (order1 !== -1 && order2 !== -1 && order1 < order2) {
+                                    // col1 has lower order -> record as table1 -> table2
+                                    this.recordColumnLink(
+                                        table1,
+                                        table2,
+                                        col1.columnName,
+                                        col2.columnName,
+                                        filePath,
+                                        lineNum,
+                                        trimmedLine,
+                                        occurrences
+                                    );
+                                } else {
+                                    // col2 has lower order (or equal/unknown) -> record as table2 -> table1
+                                    this.recordColumnLink(
+                                        table2,
+                                        table1,
+                                        col2.columnName,
+                                        col1.columnName,
+                                        filePath,
+                                        lineNum,
+                                        trimmedLine,
+                                        occurrences
+                                    );
+                                }
                                 foundLinks = true;
                             } else {
                                 // Same column pair from same table (self-link)
