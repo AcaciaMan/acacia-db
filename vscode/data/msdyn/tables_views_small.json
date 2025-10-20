@@ -299,6 +299,323 @@
           }
         ]
       }
+ 
+   },
+       {
+      "name": "Invoice",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": [
+        "Code",
+        "Document No.",
+        "External Document No.",
+        "Auto Document No.",
+        "Source Code",
+        "Tax Type"
+      ],
+      "metadata": {
+        "table_id": 56,
+        "field_count": 6,
+        "source_file": "InvoicePostingParameters.Table.al",
+        "fields_detail": [
+          {
+            "id": 1,
+            "name": "Code",
+            "data_type": "Code[10]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 3,
+            "name": "Document No.",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 4,
+            "name": "External Document No.",
+            "data_type": "Code[35]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 5,
+            "name": "Auto Document No.",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 6,
+            "name": "Source Code",
+            "data_type": "Code[10]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 10,
+            "name": "Tax Type",
+            "data_type": "Option",
+            "length": null,
+            "caption": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "Prepayment",
+      "object_type": "TABLE",
+      "object_owner": "dbo",
+      "columns": [
+        "G/L Account No.",
+        "Line No.",
+        "Amount",
+        "Description",
+        "Gen. Bus. Posting Group",
+        "Gen. Prod. Posting Group",
+        "VAT Bus. Posting Group",
+        "VAT Prod. Posting Group",
+        "VAT Amount",
+        "VAT Base Amount",
+        "Amount (ACY)",
+        "VAT Amount (ACY)",
+        "VAT Base Amount (ACY)",
+        "VAT Difference",
+        "VAT %",
+        "VAT Identifier",
+        "Global Dimension 1 Code",
+        "Global Dimension 2 Code",
+        "Job No.",
+        "Amount Incl. VAT",
+        "Tax Area Code",
+        "Tax Liable",
+        "Tax Group Code",
+        "Invoice Rounding",
+        "Adjustment",
+        "VAT Base Before Pmt. Disc.",
+        "Orig. Pmt. Disc. Possible",
+        "Location Code",
+        "Dimension Set ID",
+        "Job Task No."
+      ],
+      "metadata": {
+        "table_id": 461,
+        "field_count": 30,
+        "source_file": "PrepaymentInvLineBuffer.Table.al",
+        "fields_detail": [
+          {
+            "id": 1,
+            "name": "G/L Account No.",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 2,
+            "name": "Line No.",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 3,
+            "name": "Amount",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 4,
+            "name": "Description",
+            "data_type": "Text[100]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 5,
+            "name": "Gen. Bus. Posting Group",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 6,
+            "name": "Gen. Prod. Posting Group",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 7,
+            "name": "VAT Bus. Posting Group",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 8,
+            "name": "VAT Prod. Posting Group",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 9,
+            "name": "VAT Amount",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 11,
+            "name": "VAT Base Amount",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 12,
+            "name": "Amount (ACY)",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 13,
+            "name": "VAT Amount (ACY)",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 14,
+            "name": "VAT Base Amount (ACY)",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 15,
+            "name": "VAT Difference",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 16,
+            "name": "VAT %",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 17,
+            "name": "VAT Identifier",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 19,
+            "name": "Global Dimension 1 Code",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 20,
+            "name": "Global Dimension 2 Code",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 21,
+            "name": "Job No.",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 22,
+            "name": "Amount Incl. VAT",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 24,
+            "name": "Tax Area Code",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 25,
+            "name": "Tax Liable",
+            "data_type": "Boolean",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 26,
+            "name": "Tax Group Code",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 27,
+            "name": "Invoice Rounding",
+            "data_type": "Boolean",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 28,
+            "name": "Adjustment",
+            "data_type": "Boolean",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 29,
+            "name": "VAT Base Before Pmt. Disc.",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 30,
+            "name": "Orig. Pmt. Disc. Possible",
+            "data_type": "Decimal",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 31,
+            "name": "Location Code",
+            "data_type": "Code[10]",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 480,
+            "name": "Dimension Set ID",
+            "data_type": "Integer",
+            "length": null,
+            "caption": null
+          },
+          {
+            "id": 1001,
+            "name": "Job Task No.",
+            "data_type": "Code[20]",
+            "length": null,
+            "caption": null
+          }
+        ]
+      }
     }
   ]
 }
