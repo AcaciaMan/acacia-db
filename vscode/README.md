@@ -6,12 +6,20 @@
 
 ## Features
 
-- **📊 Activity Bar View**: Dedicated sidebar panel showing:
+- **📊 Database Explorer View**: Dedicated sidebar panel showing:
   - Database analysis summary with statistics
   - Hierarchical tree of tables, linked tables (relationships), files, and references
   - All data sorted by usage and importance
   - Quick navigation to any reference with one click
   - Inline actions for common tasks
+- **🔬 Column Explorer View**: Advanced relationship analyzer showing:
+  - 5-level tree structure: Tables → Reference Types → Linked Tables → Column Links → Contexts
+  - **References** section: Tables this table references (outgoing FKs)
+  - **Referenced by** section: Tables that reference this table (incoming FKs)
+  - Relation direction indicators: → (forward), ← (backward), ↔ (bidirectional)
+  - Smart column matching with word boundary detection
+  - File-scoped filtering for accurate relationships
+  - Hybrid file reading (streaming for large files, sync for small)
 - **🔍 Workspace Analysis**: Scan your entire workspace to find database table and column references across multiple file types (SQL, JavaScript, TypeScript, Java, C#, Python, PHP, Ruby, and more)
 - **🔗 Table Relationships**: Automatically detect tables that appear near each other in code (configurable proximity threshold)
 - **💾 Persistent Results**: Analysis results automatically saved to `.vscode/table_refs.json`:
@@ -91,7 +99,9 @@ Create a JSON file with your database schema:
 
 Both formats help filter analysis to only known tables/views, reducing false positives.
 
-### Activity Bar
+### Activity Bar Views
+
+#### Database Explorer
 
 1. **Click the Acacia DB icon** in the Activity Bar (left sidebar) to open the Database Explorer
 2. **View cached results** - Previously analyzed data loads automatically on startup
@@ -106,13 +116,47 @@ Both formats help filter analysis to only known tables/views, reducing false pos
 
 **Note**: Results are automatically saved to `.vscode/table_refs.json` and loaded on startup for instant access!
 
+#### Column Explorer
+
+1. **Click "Analyze Column Relationships"** to start deep column-level analysis
+2. **Expand tables** to see relationship categories:
+   - **➡️ References** - Tables this table references (outgoing FKs)
+   - **⬅️ Referenced by** - Tables that reference this table (incoming FKs)
+3. **Expand linked tables** to see column-level relationships:
+   - Direction symbols: `→` (forward), `←` (backward), `↔` (bidirectional)
+   - Based on column order in schema and usage patterns
+4. **Expand column links** to see specific file contexts
+5. **Click any context** to navigate to the exact line in code
+6. **Use the filter** to focus on specific tables
+7. **Observe patterns**:
+   - High "Referenced by" count = Lookup/dimension table
+   - High "References" count = Transaction/fact table
+   - Balanced counts = Mid-level table
+   - Same table in both sections = Self-referencing hierarchy
+
+**Example Tree Structure**:
+```
+📊 Customer (15 relationship(s))
+  ├─ ➡️ References (8 table(s))
+  │   └─ 🔗 Address (75 refs, 3 column links)
+  │       └─ 🔹 AddressId → CustomerAddressId (60 occurrences)
+  │           └─ 📄 CustomerService.ts (Line 45)
+  └─ ⬅️ Referenced by (7 table(s))
+      └─ 🔗 Order (150 refs, 5 column links)
+          └─ 🔹 CustomerId → OrderCustomerId (120 occurrences)
+              └─ 📄 OrderProcessor.ts (Line 89)
+```
+
 ### Commands
 
 Access these commands via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) or from the Activity Bar view:
 
+#### Database Explorer Commands
+
 1. **Acacia DB: Analyze Database Usage in Workspace**
    - Scans all files in your workspace for database references
    - Shows a summary of tables found
+   - Saves results to `.vscode/table_refs.json`
 
 2. **Acacia DB: Find Table References**
    - Search for a specific table name
@@ -126,6 +170,24 @@ Access these commands via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) 
 4. **Acacia DB: Show Database Usage Report**
    - Displays an HTML report in a webview panel
    - Formatted for easy reading with syntax highlighting
+
+#### Column Explorer Commands
+
+5. **Acacia DB: Analyze Column Relationships**
+   - Performs deep column-level analysis across workspace
+   - Detects column pairs that appear together in code
+   - Determines relationship direction based on column order
+   - Shows References vs Referenced by relationships
+   - Optimized for large codebases (streaming file I/O)
+
+6. **Acacia DB: Refresh Column Explorer**
+   - Refreshes the Column Explorer tree view
+
+7. **Acacia DB: Filter Column Explorer**
+   - Filter tables by name in Column Explorer
+
+8. **Acacia DB: Clear Column Explorer Filter**
+   - Remove active filter from Column Explorer
 
 ## Configuration
 
@@ -231,19 +293,35 @@ See [docs/ANALYSIS-RESULTS.md](docs/ANALYSIS-RESULTS.md) for complete schema and
 ## Use Cases
 
 ### Legacy System Analysis
-Understand how an unfamiliar codebase interacts with its database by quickly mapping all table usage.
+- **Database Explorer**: Quickly map all table usage patterns across the codebase
+- **Column Explorer**: Understand foreign key relationships and data dependencies
+- Identify parent-child table hierarchies automatically
 
 ### Migration Planning
-Identify all locations where specific tables are referenced before database schema changes or migrations.
+- **Database Explorer**: Find all locations where specific tables are referenced
+- **Column Explorer**: See which tables depend on each other via columns
+- Understand impact of schema changes by viewing relationship chains
 
 ### Performance Optimization
-Find frequently accessed tables and optimize queries by seeing all usage patterns in one place.
+- **Database Explorer**: Find frequently accessed tables for query optimization
+- **Column Explorer**: Identify most-used column relationships for index planning
+- Detect N+1 query patterns by analyzing column usage frequency
+
+### Schema Understanding
+- **Column Explorer References section**: See what lookup/dimension tables are needed
+- **Column Explorer Referenced by section**: Identify which tables depend on this one
+- **Relation direction**: Understand primary key → foreign key flows
+- Pattern recognition: Distinguish lookup tables from transaction tables
 
 ### Code Refactoring
-Safely refactor database access code by ensuring you've found all references to affected tables.
+- **Database Explorer**: Ensure you've found all references to affected tables
+- **Column Explorer**: Understand column-level dependencies before changes
+- Safely rename columns by seeing all usage contexts
 
 ### Documentation
-Generate up-to-date documentation of database usage for new team members or external audits.
+- Generate up-to-date documentation of database usage
+- **Column Explorer**: Auto-document foreign key relationships
+- Export relationship diagrams for team members or audits
 
 ## Requirements
 
@@ -260,12 +338,16 @@ Generate up-to-date documentation of database usage for new team members or exte
 - Performance on very large workspaces depends on ripgrep speed
 - Table relationships detection works best with consistent coding patterns
 - For extremely large codebases (>100K references), enable `filterToRelationshipsOnly` to prevent file size issues
+- Column Explorer requires `tables_views.json` with column definitions for accurate analysis
+- Relation direction depends on meaningful column ordering in schema (primary keys first)
 
 ## Release Notes
 
 ### 0.0.1
 
 Initial release of Acacia DB:
+
+#### Database Explorer
 - Configuration view for setting tables_views.json and source folder
 - Activity Bar view with hierarchical tree display (sorted by reference count)
 - Workspace-wide database usage analysis using ripgrep
@@ -279,8 +361,28 @@ Initial release of Acacia DB:
 - Table reference search with quick navigation
 - Documentation generation (Markdown and HTML)
 - Customizable scan patterns and regex patterns
+
+#### Column Explorer
+- **5-level tree hierarchy**: Tables → Reference Types → Linked Tables → Column Links → Contexts
+- **References/Referenced by sections**: Clear distinction between outgoing and incoming relationships
+- **Relation direction detection**: Based on column order numbers and table name length
+  - → Forward (lower order → higher order, typical PK→FK)
+  - ← Backward (higher order → lower order, reverse reference)
+  - ↔ Bidirectional (used in both directions)
+- **Smart column matching**: Trie-based algorithm with word boundary detection
+- **File-scoped filtering**: Only links tables actually found in each file
+- **Performance optimizations**:
+  - Column-first algorithm (20× faster for files with many tables)
+  - Hybrid file reading (streaming for large files ≥50KB, sync for small)
+  - Pre-filtering to relevant files (2+ tables)
+  - Skip comment lines and empty lines
+- **Smart sorting**: Most connected tables first, most frequent relationships first
+- **Pattern recognition**: Easily identify lookup vs transaction tables
+
+#### General
 - Performance optimizations for large codebases
 - Inline actions for common tasks
+- Comprehensive documentation with examples
 
 ## Contributing
 
